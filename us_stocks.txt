@@ -1,0 +1,11 @@
+# 美股監控清單
+# 每行一個代號，# 開頭為註解
+
+AAPL
+NVDA
+MSFT
+TSLA
+GOOGL
+AMZN
+META
+NFLX

@@ -1,0 +1,70 @@
+name: US Stock Monitor
+
+on:
+  schedule:
+    # 美股交易日：周一到周五 08:00 ET (下午1點 台灣時間)
+    - cron: '0 8 * * 1-5'
+    # 盤後更新：周一到周五 16:30 ET (凌晨3:30 台灣時間)
+    - cron: '30 16 * * 1-5'
+  workflow_dispatch:  # 手動觸發按鈕
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yfinance pandas requests
+      
+      - name: Run US Stock Monitor
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          US_STOCKS: ${{ secrets.US_STOCKS || 'AAPL,NVDA,MSFT,TSLA,GOOGL,AMZN' }}
+          AI_PROVIDER: ${{ secrets.AI_PROVIDER || 'claude' }}
+          CLAUDE_MODEL: ${{ secrets.CLAUDE_MODEL || 'claude-3-5-sonnet-20240620' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-1.5-flash' }}
+          US_GAS_URL: ${{ secrets.US_GAS_URL }}
+          US_TRIGGER_URL: ${{ secrets.US_TRIGGER_URL }}
+        run: |
+          python us_stock_dark.py
+      
+      - name: Verify HTML Output
+        run: |
+          if [ -f docs/us.html ]; then
+            echo "✓ HTML file generated successfully"
+            wc -l docs/us.html
+          else
+            echo "✗ HTML file not found"
+            exit 1
+          fi
+      
+      - name: Commit and Push
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/ 2>/dev/null || true
+          if ! git diff --staged --quiet; then
+            git commit -m "US stock update: $(date -u +'%Y-%m-%d %H:%M') UTC"
+            git push
+          else
+            echo "No changes to commit"
+          fi
