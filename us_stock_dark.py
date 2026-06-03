@@ -394,6 +394,25 @@ def get_sector_performance():
     out.sort(key=lambda x: -x["m1"])
     return out
 
+def get_sector_daily_history(days: int = 30):
+    """近 N 個交易日每天的各類股單日漲跌幅 (%); 用於類股輪動播放動畫"""
+    raw = {}  # {date: {sector_name: pct}}
+    for sym, name in SECTOR_ETFS.items():
+        try:
+            df = yf.Ticker(sym).history(period="3mo")
+            if df is None or df.empty: continue
+            closes = df["Close"].dropna()
+            pct = closes.pct_change() * 100
+            tail = pct.tail(days)
+            for d, v in tail.items():
+                if pd.notna(v):
+                    dt_str = d.strftime("%m-%d")
+                    raw.setdefault(dt_str, {})[name] = round(float(v), 2)
+        except Exception:
+            continue
+    sorted_dates = sorted(raw.keys())
+    return [{"date": dt, "values": raw[dt]} for dt in sorted_dates]
+
 def get_yields():
     syms = {"^IRX": "13週", "^FVX": "5年", "^TNX": "10年", "^TYX": "30年"}
     out = []
@@ -513,6 +532,7 @@ def get_market_overview():
     md["dxy_quote"] = get_quote("DX-Y.NYB")
     md["tnx_series"] = get_index_series("^TNX")  # 10Y 殖利率歷史 (宏觀情緒對比用)
     md["sectors"] = get_sector_performance()
+    md["sectors_daily"] = get_sector_daily_history(30)
     md["yields"] = get_yields()
     return md
 
@@ -898,10 +918,6 @@ def generate_market_section(md: dict):
       </div>
     </div>
 
-    <div class="card"><div class="card-title"><span>美債殖利率即時</span></div>
-      <div class="yields-row">{yields_html or '<span style=color:var(--ink-3)>查無資料</span>'}</div>
-    </div>
-
     <div class="card"><div class="card-title"><span>美債殖利率走勢 · 2 / 10 / 30 年</span></div>
       <div id="yield_chart" class="chart-box" style="height:340px;"></div></div>
 
@@ -910,9 +926,11 @@ def generate_market_section(md: dict):
           <button class="sector-btn" data-period="d1" onclick="switchSectorPeriod(this)">1日</button>
           <button class="sector-btn" data-period="w1" onclick="switchSectorPeriod(this)">5日</button>
           <button class="sector-btn on" data-period="m1" onclick="switchSectorPeriod(this)">1月</button>
+          <span class="sector-sep"></span>
+          <button class="sector-btn sector-play" id="sectorPlayBtn" onclick="toggleSectorPlay(this)">▶ 播放近30日</button>
         </div>
       </div>
-      <div id="sector_chart" class="chart-box" style="height:340px;"></div></div>"""
+      <div id="sector_chart" class="chart-box" style="height:380px;"></div></div>"""
 
 # =========================================================
 # 圖表腳本
@@ -948,6 +966,7 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
 
     return f"""
 var {var} = echarts.init(document.getElementById('{div_id}'));
+{var}.group = 'market';
 {var}.setOption({{
   title: [{{ text: 'K線 · MA20 · Supertrend', left: '6%', top: '1%', textStyle: {{fontSize: 12, color: '{T["title"]}'}} }}],
   legend: {{ data: ['MA20','Supertrend↑','Supertrend↓'], top: '1%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
@@ -1083,6 +1102,7 @@ window.addEventListener('resize', function(){{ oc_{tk}.resize(); }});
         mhc = [T["up"] if (v is not None and v >= 0) else T["down"] for v in macd_hist]
         return f"""
 var {var} = echarts.init(document.getElementById('{div_id}'));
+{var}.group = 'market';
 {var}.setOption({{
   title: [{{ text: 'MACD(12,26,9)', left: '6%', top: '4%', textStyle: {{fontSize: 10, color: '{T["title"]}'}} }}],
   legend: {{ data: ['DIF','DEA','Hist'], top: '4%', right: '6%', textStyle: {{fontSize: 9, color: '{T["legend"]}'}}, itemWidth: 10, itemHeight: 7 }},
@@ -1110,6 +1130,7 @@ window.addEventListener('resize', function(){{ {var}.resize(); }});
         d_vals = [d["d"] for d in series]
         return f"""
 var {var} = echarts.init(document.getElementById('{div_id}'));
+{var}.group = 'market';
 {var}.setOption({{
   title: [{{ text: 'KD(14,3,3)', left: '6%', top: '4%', textStyle: {{fontSize: 10, color: '{T["title"]}'}} }}],
   legend: {{ data: ['K','D'], top: '4%', right: '6%', textStyle: {{fontSize: 9, color: '{T["legend"]}'}}, itemWidth: 10, itemHeight: 7 }},
@@ -1137,13 +1158,14 @@ window.addEventListener('resize', function(){{ {var}.resize(); }});
         vvals = [round(d["close"], 2) for d in vix_series]
         scripts.append(f"""
 var vixc = echarts.init(document.getElementById('vix_chart'));
+vixc.group = 'market';
 vixc.setOption({{
   title: [{{ text: 'VIX 波動率', left: '6%', top: '4%', textStyle: {{fontSize: 10, color: '{T["title"]}'}} }}],
   tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}} }},
-  grid: {{ left: '8%', right: '8%', top: '28%', bottom: '20%' }},
+  grid: {{ left: '6%', right: '6%', top: '28%', bottom: '20%' }},
   xAxis: {{ type: 'category', data: {json.dumps(vdates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
   yAxis: {{ scale: true, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
-  dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
+  dataZoom: [{{ type: 'inside', start: 40, end: 100 }}],
   series: [{{ name: 'VIX', type: 'line', data: {json.dumps(vvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.6, color: '{T["vix"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.12)'}},
     markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 20, lineStyle: {{color: '{T["neutral"]}', type: 'dashed', width: 0.8}}, label: {{formatter: '20', color: '{T["neutral"]}', fontSize: 9, position: 'end'}}}}, {{yAxis: 30, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}, label: {{formatter: '30 恐慌', color: '{T["down"]}', fontSize: 9, position: 'end'}}}}] }} }}]
 }});
@@ -1157,12 +1179,14 @@ window.addEventListener('resize', function(){{ vixc.resize(); }});
         fgvals = [d["score"] for d in fg_hist]
         scripts.append(f"""
 var fghc = echarts.init(document.getElementById('fg_chart'));
+fghc.group = 'market';
 fghc.setOption({{
   title: [{{ text: 'CNN Fear & Greed', left: '6%', top: '4%', textStyle: {{fontSize: 10, color: '{T["title"]}'}} }}],
   tooltip: {{ trigger: 'axis', backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}} }},
-  grid: {{ left: '10%', right: '8%', top: '28%', bottom: '22%' }},
+  grid: {{ left: '6%', right: '6%', top: '28%', bottom: '22%' }},
   xAxis: {{ type: 'category', data: {json.dumps(fgdates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', interval: 14}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
   yAxis: {{ min: 0, max: 100, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+  dataZoom: [{{ type: 'inside', start: 40, end: 100 }}],
   series: [{{ type: 'line', data: {json.dumps(fgvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.5, color: '{T["rsi"]}'}}, areaStyle: {{color: 'rgba(111,155,255,0.10)'}},
     markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 25, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.6}}, label: {{formatter: '25', color: '{T["down"]}', fontSize: 9, position: 'end'}}}}, {{yAxis: 75, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.6}}, label: {{formatter: '75', color: '{T["up"]}', fontSize: 9, position: 'end'}}}}] }} }}]
 }});
@@ -1176,36 +1200,44 @@ window.addEventListener('resize', function(){{ fghc.resize(); }});
         tvals = [round(d["close"], 3) for d in tnx_series]
         scripts.append(f"""
 var tnxc = echarts.init(document.getElementById('tnx_chart'));
+tnxc.group = 'market';
 tnxc.setOption({{
   title: [{{ text: '10Y 美債殖利率', left: '6%', top: '4%', textStyle: {{fontSize: 10, color: '{T["title"]}'}} }}],
   tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}}, valueFormatter: function(v){{return v==null?'-':v.toFixed(3)+'%';}} }},
-  grid: {{ left: '8%', right: '8%', top: '28%', bottom: '20%' }},
+  grid: {{ left: '6%', right: '6%', top: '28%', bottom: '20%' }},
   xAxis: {{ type: 'category', data: {json.dumps(tdates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
   yAxis: {{ scale: true, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
-  dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
+  dataZoom: [{{ type: 'inside', start: 40, end: 100 }}],
   series: [{{ name: '10Y 殖利率', type: 'line', data: {json.dumps(tvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.6, color: '{T["ma20"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.08)'}} }}]
 }});
 window.addEventListener('resize', function(){{ tnxc.resize(); }});
 """)
 
-    # 美債殖利率 2/10/30 年走勢 (共用單一左軸, 與上方圖表 grid 對齊)
+    # 美債殖利率 2/10/30 年走勢 (共用單一左軸, 每條線右端標示最新值)
     yc = md.get("yield_curve", {})
     if yc.get("dates"):
         yseries = yc.get("series", {})
         line_colors = {"2年": T["rsi"], "10年": T["ma20"], "30年": T["ma200"]}
         labels = list(yseries.keys())
-        # 共用單一 yAxis (各天期 scale 接近, 同軸視覺對比更直觀)
-        yseries_js = ",\n    ".join([
-            f"""{{ name: '{label}', type: 'line', data: {json.dumps(vals)}, smooth: true, showSymbol: false, connectNulls: true, lineStyle: {{width: 1.6, color: '{line_colors.get(label, T["rsi"])}'}}, itemStyle: {{color: '{line_colors.get(label, T["rsi"])}'}} }}"""
-            for label, vals in yseries.items()
-        ])
-        # grid 設定與上方 vix/fg/tnx/dxy 圖表一致 (left: 8%, right: 8%)
+        # 共用單一 yAxis; 每條線使用 endLabel 在最右端顯示最新值
+        yseries_arr = []
+        for label, vals in yseries.items():
+            color = line_colors.get(label, T["rsi"])
+            yseries_arr.append(
+                f"""{{ name: '{label}', type: 'line', data: {json.dumps(vals)}, smooth: true, showSymbol: false, connectNulls: true, """
+                f"""lineStyle: {{width: 1.6, color: '{color}'}}, itemStyle: {{color: '{color}'}}, """
+                f"""endLabel: {{show: true, formatter: function(p){{return '{label}: ' + (p.value==null?'-':p.value.toFixed(2)) + '%';}}, """
+                f"""color: '#ffffff', backgroundColor: '{color}', padding: [4, 7], borderRadius: 5, """
+                f"""fontSize: 11, fontWeight: 'bold', fontFamily: 'IBM Plex Mono', distance: 8}} }}"""
+            )
+        yseries_js = ",\n    ".join(yseries_arr)
+        # right padding 加大給 endLabel 留空間
         scripts.append(f"""
 var yldc = echarts.init(document.getElementById('yield_chart'));
 yldc.setOption({{
   legend: {{ data: {json.dumps(labels)}, top: '4%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
   tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}}, valueFormatter: function(v){{return v==null?'-':v.toFixed(3)+'%';}} }},
-  grid: {{ left: '8%', right: '8%', top: '18%', bottom: '12%' }},
+  grid: {{ left: '6%', right: '13%', top: '18%', bottom: '12%' }},
   xAxis: {{ type: 'category', data: {json.dumps(yc["dates"])}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
   yAxis: {{ type: 'value', scale: true, splitNumber: 5, axisLine: {{show: true, lineStyle: {{color: '{T["axis_line"]}'}}}}, axisTick: {{lineStyle: {{color: '{T["axis_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
   dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
@@ -1224,13 +1256,15 @@ window.addEventListener('resize', function(){{ yldc.resize(); }});
         dma20 = [d.get("ma20") for d in dxy_series]
         scripts.append(f"""
 var dxyc = echarts.init(document.getElementById('dxy_chart'));
+dxyc.group = 'market';
 dxyc.setOption({{
   title: [{{ text: '美元指數 DXY', left: '6%', top: '4%', textStyle: {{fontSize: 10, color: '{T["title"]}'}} }}],
   legend: {{ data: ['DXY','MA20'], top: '4%', right: '6%', textStyle: {{fontSize: 9, color: '{T["legend"]}'}}, itemWidth: 10, itemHeight: 7 }},
   tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}} }},
-  grid: {{ left: '8%', right: '8%', top: '28%', bottom: '20%' }},
+  grid: {{ left: '6%', right: '6%', top: '28%', bottom: '20%' }},
   xAxis: {{ type: 'category', data: {json.dumps(ddates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
   yAxis: {{ scale: true, splitNumber: 4, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(1);}}}} }},
+  dataZoom: [{{ type: 'inside', start: 40, end: 100 }}],
   series: [
     {{ name: 'DXY', type: 'line', data: {json.dumps(dvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.6, color: '{T["accent"] if "accent" in T else T["rsi"]}'}}, areaStyle: {{color: 'rgba(77,127,255,0.10)'}} }},
     {{ name: 'MA20', type: 'line', data: {json.dumps(dma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }}
@@ -1239,44 +1273,112 @@ dxyc.setOption({{
 window.addEventListener('resize', function(){{ dxyc.resize(); }});
 """)
 
-    # 類股輪動 (支援 1日 / 5日 / 1月 切換)
+    # 類股輪動 (支援 1日 / 5日 / 1月 切換 + 近30日每日變動播放)
     sectors = md.get("sectors", [])
     if sectors:
         # 三個時間框的資料 (依當前選定週期排序; 預設用 m1 排序作為基準, 各週期切換時動態 re-sort)
         sec_payload = [{"name": s["name"], "d1": s.get("d1", 0), "w1": s.get("w1", 0), "m1": s.get("m1", 0)} for s in sectors]
+        # 固定順序給播放用 (依 m1 排好, 播放時不重新排序避免閃跳)
+        fixed_order = [s["name"] for s in sectors][::-1]  # 反向: 表現最差在下、最好在上
+        daily_history = md.get("sectors_daily", [])
         scripts.append(f"""
 window._sectorData = {json.dumps(sec_payload)};
+window._sectorDaily = {json.dumps(daily_history)};
+window._sectorFixedOrder = {json.dumps(fixed_order)};
 window._sectorChart = echarts.init(document.getElementById('sector_chart'));
+window._sectorPlayTimer = null;
+window._sectorPlayIdx = 0;
 
 window.renderSectorChart = function(period) {{
   var data = window._sectorData.slice();
-  // 依當前 period 由大到小排序 (高漲幅在上)
+  // 依當前 period 由小到大排序 (高漲幅在上, 因 horizontal bar y軸最下方為第一筆)
   data.sort(function(a, b){{ return a[period] - b[period]; }});
   var names = data.map(function(s){{ return s.name; }});
   var vals = data.map(function(s){{ return s[period]; }});
   var colors = vals.map(function(v){{ return v >= 0 ? '{T["up"]}' : '{T["down"]}'; }});
   var seriesData = vals.map(function(v, i){{ return {{value: v, itemStyle: {{color: colors[i]}}}}; }});
+  var pLabel = period === 'd1' ? '近1日' : (period === 'w1' ? '近5日' : '近1月');
 
   window._sectorChart.setOption({{
+    title: {{ text: pLabel + ' 表現', left: 'right', top: '2%', textStyle: {{fontSize: 13, color: '{T["title"]}', fontWeight: 700}} }},
     tooltip: {{ trigger: 'axis', axisPointer: {{type: 'shadow'}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}}, formatter: function(p){{return p[0].name + ': <b>' + p[0].value.toFixed(2) + '%</b>';}} }},
-    grid: {{ left: '14%', right: '8%', top: '4%', bottom: '6%' }},
+    grid: {{ left: '14%', right: '8%', top: '12%', bottom: '6%' }},
     xAxis: {{ type: 'value', axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     yAxis: {{ type: 'category', data: names, axisLabel: {{fontSize: 11, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
-    series: [{{ type: 'bar', data: seriesData, barWidth: '60%', label: {{show: true, position: 'right', fontSize: 10, color: '{T["axis_label"]}', formatter: function(p){{return p.value.toFixed(1)+'%';}}}} }}]
+    series: [{{ type: 'bar', data: seriesData, barWidth: '60%', label: {{show: true, position: 'right', fontSize: 10, color: '{T["axis_label"]}', formatter: function(p){{return p.value.toFixed(1)+'%';}}}} }}],
+    animationDuration: 300
+  }}, true);
+}};
+
+// 播放時的單日快照 (固定順序, 避免重新排序造成的視覺跳動)
+window.renderSectorSnapshot = function(snap, idx, total) {{
+  var fixedOrder = window._sectorFixedOrder;
+  var vals = fixedOrder.map(function(n){{ var v = snap.values[n]; return v == null ? 0 : v; }});
+  var colors = vals.map(function(v){{ return v >= 0 ? '{T["up"]}' : '{T["down"]}'; }});
+  var seriesData = vals.map(function(v, i){{ return {{value: v, itemStyle: {{color: colors[i]}}}}; }});
+
+  window._sectorChart.setOption({{
+    title: {{ text: snap.date + '  單日漲跌  (' + idx + '/' + total + ')', left: 'right', top: '2%', textStyle: {{fontSize: 13, color: '{T["ma50"]}', fontWeight: 700, fontFamily: 'IBM Plex Mono'}} }},
+    tooltip: {{ trigger: 'axis', axisPointer: {{type: 'shadow'}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}}, formatter: function(p){{return p[0].name + ': <b>' + p[0].value.toFixed(2) + '%</b>';}} }},
+    grid: {{ left: '14%', right: '8%', top: '12%', bottom: '6%' }},
+    xAxis: {{ type: 'value', axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+    yAxis: {{ type: 'category', data: fixedOrder, axisLabel: {{fontSize: 11, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+    series: [{{ type: 'bar', data: seriesData, barWidth: '60%', label: {{show: true, position: 'right', fontSize: 10, color: '{T["axis_label"]}', formatter: function(p){{return p.value.toFixed(2)+'%';}}}} }}],
+    animationDuration: 250,
+    animationDurationUpdate: 250
   }}, true);
 }};
 
 window.switchSectorPeriod = function(btn) {{
-  var btns = document.querySelectorAll('.sector-btn');
+  // 切換期別前先停止播放
+  if (window._sectorPlayTimer) {{
+    clearInterval(window._sectorPlayTimer);
+    window._sectorPlayTimer = null;
+    var pb = document.getElementById('sectorPlayBtn');
+    if (pb) {{ pb.innerHTML = '▶ 播放近30日'; pb.classList.remove('playing'); }}
+  }}
+  var btns = document.querySelectorAll('.sector-btn[data-period]');
   for (var i = 0; i < btns.length; i++) btns[i].classList.remove('on');
   btn.classList.add('on');
   window.renderSectorChart(btn.getAttribute('data-period'));
+}};
+
+window.toggleSectorPlay = function(btn) {{
+  if (window._sectorPlayTimer) {{
+    // 停止播放
+    clearInterval(window._sectorPlayTimer);
+    window._sectorPlayTimer = null;
+    btn.innerHTML = '▶ 播放近30日';
+    btn.classList.remove('playing');
+    // 恢復當前選定週期
+    var active = document.querySelector('.sector-btn[data-period].on');
+    if (active) window.renderSectorChart(active.getAttribute('data-period'));
+    return;
+  }}
+  if (!window._sectorDaily || window._sectorDaily.length === 0) {{
+    alert('無近30日資料');
+    return;
+  }}
+  btn.innerHTML = '⏸ 停止';
+  btn.classList.add('playing');
+  window._sectorPlayIdx = 0;
+  var daily = window._sectorDaily;
+  function step() {{
+    if (window._sectorPlayIdx >= daily.length) window._sectorPlayIdx = 0;
+    var snap = daily[window._sectorPlayIdx];
+    window.renderSectorSnapshot(snap, window._sectorPlayIdx + 1, daily.length);
+    window._sectorPlayIdx++;
+  }}
+  step();
+  window._sectorPlayTimer = setInterval(step, 600);
 }};
 
 // 預設顯示 1月
 window.renderSectorChart('m1');
 window.addEventListener('resize', function(){{ if(window._sectorChart) window._sectorChart.resize(); }});
 """)
+    # 連動所有 market group 圖表的 dataZoom 與十字線 (主圖/MACD/KD/VIX/F&G/TNX/DXY)
+    scripts.append("setTimeout(function(){ if (typeof echarts !== 'undefined') echarts.connect('market'); }, 100);")
 
     return "\n".join(scripts)
 
@@ -1422,10 +1524,13 @@ body{font-family:var(--sans);color:var(--ink);line-height:1.5;padding:20px;min-h
 .opt-cell{background:var(--surface-2);padding:11px 13px}
 .opt-cell .k{font-size:10px;color:var(--ink-3);font-weight:600}
 .opt-cell .v{font-size:15px;font-weight:600;margin-top:4px;font-family:var(--mono)}
-.sector-ctrl{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px;gap:2px}
-.sector-btn{background:transparent;border:0;color:var(--ink-2);font-family:inherit;font-size:11px;font-weight:600;padding:5px 12px;border-radius:4px;cursor:pointer;transition:.15s}
+.sector-ctrl{display:inline-flex;align-items:center;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px;gap:2px}
+.sector-btn{background:transparent;border:0;color:var(--ink-2);font-family:inherit;font-size:11px;font-weight:600;padding:5px 12px;border-radius:4px;cursor:pointer;transition:.15s;white-space:nowrap}
 .sector-btn.on{background:var(--accent);color:#fff;box-shadow:0 0 8px rgba(77,127,255,.35)}
 .sector-btn:not(.on):hover{color:var(--ink);background:rgba(255,255,255,.03)}
+.sector-sep{width:1px;height:14px;background:var(--line);margin:0 4px}
+.sector-play.playing{background:var(--gold);color:#0a0e15;box-shadow:0 0 10px rgba(224,168,60,.45)}
+.sector-play:not(.playing):hover{color:var(--gold)}
 .news{margin-top:4px;border:1px solid var(--line);border-radius:11px;overflow:hidden}
 .news summary{padding:12px 15px;background:var(--surface-2);cursor:pointer;font-size:12.5px;font-weight:700;color:var(--ink-2);list-style:none;display:flex;justify-content:space-between;align-items:center}
 .news summary::-webkit-details-marker{display:none}
