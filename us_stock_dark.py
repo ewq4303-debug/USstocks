@@ -395,23 +395,36 @@ def get_sector_performance():
     return out
 
 def get_sector_daily_history(days: int = 30):
-    """近 N 個交易日每天的各類股單日漲跌幅 (%); 用於類股輪動播放動畫"""
-    raw = {}  # {date: {sector_name: pct}}
+    """近 N 個交易日各類股每日累積報酬 (%, 相對於 N 天前的起始值)"""
+    series_dict = {}
     for sym, name in SECTOR_ETFS.items():
         try:
             df = yf.Ticker(sym).history(period="3mo")
             if df is None or df.empty: continue
-            closes = df["Close"].dropna()
-            pct = closes.pct_change() * 100
-            tail = pct.tail(days)
-            for d, v in tail.items():
-                if pd.notna(v):
-                    dt_str = d.strftime("%m-%d")
-                    raw.setdefault(dt_str, {})[name] = round(float(v), 2)
+            s = df["Close"].dropna()
+            if not s.empty:
+                series_dict[name] = s
         except Exception:
             continue
-    sorted_dates = sorted(raw.keys())
-    return [{"date": dt, "values": raw[dt]} for dt in sorted_dates]
+    if not series_dict:
+        return []
+    # 對齊所有類股的日期 (取交集)
+    aligned = pd.concat(series_dict, axis=1).dropna()
+    if len(aligned) < 2:
+        return []
+    # 取最後 days+1 筆 (多 1 筆作為 baseline)
+    tail = aligned.tail(days + 1) if len(aligned) > days else aligned
+    base = tail.iloc[0]  # 起始基準
+    out = []
+    for i in range(1, len(tail)):  # 從第 1 個開始 (第 0 個是 baseline)
+        row = tail.iloc[i]
+        dt = tail.index[i].strftime("%m-%d")
+        values = {}
+        for name in series_dict.keys():
+            if name in row.index and pd.notna(row[name]) and pd.notna(base[name]) and base[name] > 0:
+                values[name] = round(float(row[name] / base[name] - 1) * 100, 2)
+        out.append({"date": dt, "values": values})
+    return out
 
 def get_yields():
     syms = {"^IRX": "13週", "^FVX": "5年", "^TNX": "10年", "^TYX": "30年"}
@@ -926,8 +939,9 @@ def generate_market_section(md: dict):
           <button class="sector-btn" data-period="d1" onclick="switchSectorPeriod(this)">1日</button>
           <button class="sector-btn" data-period="w1" onclick="switchSectorPeriod(this)">5日</button>
           <button class="sector-btn on" data-period="m1" onclick="switchSectorPeriod(this)">1月</button>
+          <button class="sector-btn" data-period="trend" onclick="switchSectorPeriod(this)">📈 近30日走勢</button>
           <span class="sector-sep"></span>
-          <button class="sector-btn sector-play" id="sectorPlayBtn" onclick="toggleSectorPlay(this)">▶ 播放近30日</button>
+          <button class="sector-btn sector-play" id="sectorPlayBtn" onclick="toggleSectorPlay(this)">▶ 播放</button>
         </div>
       </div>
       <div id="sector_chart" class="chart-box" style="height:380px;"></div></div>"""
@@ -1273,25 +1287,33 @@ dxyc.setOption({{
 window.addEventListener('resize', function(){{ dxyc.resize(); }});
 """)
 
-    # 類股輪動 (支援 1日 / 5日 / 1月 切換 + 近30日每日變動播放)
+    # 類股輪動 (支援 1日 / 5日 / 1月 長條 + 近30日累積折線 + 播放動畫)
     sectors = md.get("sectors", [])
     if sectors:
-        # 三個時間框的資料 (依當前選定週期排序; 預設用 m1 排序作為基準, 各週期切換時動態 re-sort)
         sec_payload = [{"name": s["name"], "d1": s.get("d1", 0), "w1": s.get("w1", 0), "m1": s.get("m1", 0)} for s in sectors]
-        # 固定順序給播放用 (依 m1 排好, 播放時不重新排序避免閃跳)
-        fixed_order = [s["name"] for s in sectors][::-1]  # 反向: 表現最差在下、最好在上
+        fixed_order = [s["name"] for s in sectors][::-1]  # 長條圖固定順序 (m1 由小到大)
         daily_history = md.get("sectors_daily", [])
+        # 11 個類股的固定配色 (依 SECTOR_ETFS 順序)
+        sector_palette = [
+            "#6f9bff", "#22d39a", "#ff8a6b", "#e0a83c", "#b07bff",
+            "#ff525b", "#5fd3ff", "#8ec63f", "#f0c060", "#ff6bb5", "#4d7fff"
+        ]
+        all_names = list(SECTOR_ETFS.values())
+        color_map = {name: sector_palette[i % len(sector_palette)] for i, name in enumerate(all_names)}
         scripts.append(f"""
 window._sectorData = {json.dumps(sec_payload)};
 window._sectorDaily = {json.dumps(daily_history)};
 window._sectorFixedOrder = {json.dumps(fixed_order)};
+window._sectorColorMap = {json.dumps(color_map)};
+window._sectorAllNames = {json.dumps(all_names)};
 window._sectorChart = echarts.init(document.getElementById('sector_chart'));
 window._sectorPlayTimer = null;
 window._sectorPlayIdx = 0;
+window._sectorCurrentMode = 'm1';  // 當前顯示模式: d1 / w1 / m1 / trend
 
-window.renderSectorChart = function(period) {{
+// ===== 長條圖模式 (1日 / 5日 / 1月) =====
+window.renderSectorBar = function(period) {{
   var data = window._sectorData.slice();
-  // 依當前 period 由小到大排序 (高漲幅在上, 因 horizontal bar y軸最下方為第一筆)
   data.sort(function(a, b){{ return a[period] - b[period]; }});
   var names = data.map(function(s){{ return s.name; }});
   var vals = data.map(function(s){{ return s[period]; }});
@@ -1301,6 +1323,7 @@ window.renderSectorChart = function(period) {{
 
   window._sectorChart.setOption({{
     title: {{ text: pLabel + ' 表現', left: 'right', top: '2%', textStyle: {{fontSize: 13, color: '{T["title"]}', fontWeight: 700}} }},
+    legend: {{ show: false }},
     tooltip: {{ trigger: 'axis', axisPointer: {{type: 'shadow'}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}}, formatter: function(p){{return p[0].name + ': <b>' + p[0].value.toFixed(2) + '%</b>';}} }},
     grid: {{ left: '14%', right: '8%', top: '12%', bottom: '6%' }},
     xAxis: {{ type: 'value', axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
@@ -1310,32 +1333,74 @@ window.renderSectorChart = function(period) {{
   }}, true);
 }};
 
-// 播放時的單日快照 (固定順序, 避免重新排序造成的視覺跳動)
-window.renderSectorSnapshot = function(snap, idx, total) {{
-  var fixedOrder = window._sectorFixedOrder;
-  var vals = fixedOrder.map(function(n){{ var v = snap.values[n]; return v == null ? 0 : v; }});
-  var colors = vals.map(function(v){{ return v >= 0 ? '{T["up"]}' : '{T["down"]}'; }});
-  var seriesData = vals.map(function(v, i){{ return {{value: v, itemStyle: {{color: colors[i]}}}}; }});
+// ===== 近30日累積報酬折線圖模式 =====
+// progress: null=顯示完整;否則只顯示到第 progress 天 (1-based)
+window.renderSectorTrend = function(progress) {{
+  var daily = window._sectorDaily;
+  if (!daily || daily.length === 0) {{
+    window._sectorChart.setOption({{
+      title: {{ text: '無近30日資料', left: 'center', top: 'center', textStyle: {{color: '{T["axis_label"]}'}} }},
+      legend: {{show:false}}, series: [], xAxis: {{show: false}}, yAxis: {{show: false}}
+    }}, true);
+    return;
+  }}
+  var dates = daily.map(function(d){{ return d.date; }});
+  var names = window._sectorAllNames;
+  var colorMap = window._sectorColorMap;
+  var limit = progress != null ? progress : daily.length;
+
+  var series = names.map(function(name) {{
+    var data = daily.map(function(d, i) {{
+      if (i >= limit) return null;
+      return d.values[name] != null ? d.values[name] : null;
+    }});
+    return {{
+      name: name,
+      type: 'line',
+      data: data,
+      smooth: true,
+      showSymbol: false,
+      connectNulls: false,
+      lineStyle: {{ width: 1.6, color: colorMap[name] }},
+      itemStyle: {{ color: colorMap[name] }},
+      emphasis: {{ focus: 'series', lineStyle: {{width: 2.4}} }}
+    }};
+  }});
+
+  var titleText = progress != null
+    ? '近30日累積報酬 · 第 ' + progress + ' / ' + daily.length + ' 天 (' + dates[Math.min(progress-1, dates.length-1)] + ')'
+    : '近30日累積報酬';
 
   window._sectorChart.setOption({{
-    title: {{ text: snap.date + '  單日漲跌  (' + idx + '/' + total + ')', left: 'right', top: '2%', textStyle: {{fontSize: 13, color: '{T["ma50"]}', fontWeight: 700, fontFamily: 'IBM Plex Mono'}} }},
-    tooltip: {{ trigger: 'axis', axisPointer: {{type: 'shadow'}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}}, formatter: function(p){{return p[0].name + ': <b>' + p[0].value.toFixed(2) + '%</b>';}} }},
-    grid: {{ left: '14%', right: '8%', top: '12%', bottom: '6%' }},
-    xAxis: {{ type: 'value', axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
-    yAxis: {{ type: 'category', data: fixedOrder, axisLabel: {{fontSize: 11, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
-    series: [{{ type: 'bar', data: seriesData, barWidth: '60%', label: {{show: true, position: 'right', fontSize: 10, color: '{T["axis_label"]}', formatter: function(p){{return p.value.toFixed(2)+'%';}}}} }}],
+    title: {{ text: titleText, left: 'right', top: '2%', textStyle: {{fontSize: 13, color: '{T["ma50"]}', fontWeight: 700, fontFamily: 'IBM Plex Mono'}} }},
+    legend: {{ show: true, data: names, top: '2%', left: '2%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 10, itemHeight: 8, type: 'scroll', width: '60%' }},
+    tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}}, valueFormatter: function(v){{return v==null?'-':v.toFixed(2)+'%';}} }},
+    grid: {{ left: '6%', right: '6%', top: '15%', bottom: '8%' }},
+    xAxis: {{ type: 'category', data: dates, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+    yAxis: {{ type: 'value', scale: true, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLine: {{show: false}} }},
+    series: series,
     animationDuration: 250,
-    animationDurationUpdate: 250
+    animationDurationUpdate: 200
   }}, true);
 }};
 
+// ===== 統一切換入口 =====
+window.renderSectorChart = function(period) {{
+  window._sectorCurrentMode = period;
+  if (period === 'trend') {{
+    window.renderSectorTrend(null);  // 顯示完整 30 天
+  }} else {{
+    window.renderSectorBar(period);
+  }}
+}};
+
 window.switchSectorPeriod = function(btn) {{
-  // 切換期別前先停止播放
+  // 切換期別時停止播放
   if (window._sectorPlayTimer) {{
     clearInterval(window._sectorPlayTimer);
     window._sectorPlayTimer = null;
     var pb = document.getElementById('sectorPlayBtn');
-    if (pb) {{ pb.innerHTML = '▶ 播放近30日'; pb.classList.remove('playing'); }}
+    if (pb) {{ pb.innerHTML = '▶ 播放'; pb.classList.remove('playing'); }}
   }}
   var btns = document.querySelectorAll('.sector-btn[data-period]');
   for (var i = 0; i < btns.length; i++) btns[i].classList.remove('on');
@@ -1345,32 +1410,45 @@ window.switchSectorPeriod = function(btn) {{
 
 window.toggleSectorPlay = function(btn) {{
   if (window._sectorPlayTimer) {{
-    // 停止播放
+    // 停止播放, 顯示完整折線圖
     clearInterval(window._sectorPlayTimer);
     window._sectorPlayTimer = null;
-    btn.innerHTML = '▶ 播放近30日';
+    btn.innerHTML = '▶ 播放';
     btn.classList.remove('playing');
-    // 恢復當前選定週期
-    var active = document.querySelector('.sector-btn[data-period].on');
-    if (active) window.renderSectorChart(active.getAttribute('data-period'));
+    window.renderSectorTrend(null);
     return;
   }}
   if (!window._sectorDaily || window._sectorDaily.length === 0) {{
-    alert('無近30日資料');
+    alert('無近30日資料可播放');
     return;
+  }}
+  // 若當前不在 trend 模式, 自動切換過去
+  if (window._sectorCurrentMode !== 'trend') {{
+    var btns = document.querySelectorAll('.sector-btn[data-period]');
+    for (var i = 0; i < btns.length; i++) {{
+      btns[i].classList.remove('on');
+      if (btns[i].getAttribute('data-period') === 'trend') btns[i].classList.add('on');
+    }}
+    window._sectorCurrentMode = 'trend';
   }}
   btn.innerHTML = '⏸ 停止';
   btn.classList.add('playing');
-  window._sectorPlayIdx = 0;
-  var daily = window._sectorDaily;
+  window._sectorPlayIdx = 1;
+  var total = window._sectorDaily.length;
   function step() {{
-    if (window._sectorPlayIdx >= daily.length) window._sectorPlayIdx = 0;
-    var snap = daily[window._sectorPlayIdx];
-    window.renderSectorSnapshot(snap, window._sectorPlayIdx + 1, daily.length);
+    window.renderSectorTrend(window._sectorPlayIdx);
     window._sectorPlayIdx++;
+    if (window._sectorPlayIdx > total) {{
+      // 播完一輪後停在完整圖, 並還原按鈕
+      clearInterval(window._sectorPlayTimer);
+      window._sectorPlayTimer = null;
+      btn.innerHTML = '▶ 播放';
+      btn.classList.remove('playing');
+      window.renderSectorTrend(null);
+    }}
   }}
   step();
-  window._sectorPlayTimer = setInterval(step, 600);
+  window._sectorPlayTimer = setInterval(step, 400);
 }};
 
 // 預設顯示 1月
