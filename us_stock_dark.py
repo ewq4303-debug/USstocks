@@ -337,26 +337,45 @@ def get_quote(symbol: str):
         return None
 
 def get_fear_greed():
-    try:
-        url = "https://production.fear-and-greed-cnn.com/graphdata"
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
-        r = requests.get(url, headers=headers, timeout=15)
-        j = r.json()
-        fg = j.get("fear_and_greed", {})
-        score = round(float(fg.get("score", 0)), 1)
-        rating = fg.get("rating", "")
-        hist = []
-        for d in (j.get("fear_and_greed_historical", {}).get("data", []))[-90:]:
-            try:
-                ts = int(d.get("x", 0)) / 1000
-                hist.append({"date": datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d"), "score": round(float(d.get("y", 0)), 1)})
-            except Exception:
-                continue
-        return {"score": score, "rating": rating, "history": hist,
-                "prev_close": round(float(fg.get("previous_close", 0)), 1)}
-    except Exception as e:
-        print(f"    [Warn] Fear & Greed 抓取失敗: {e}")
-        return {"score": 0, "rating": "n/a", "history": [], "prev_close": 0}
+    # CNN 已將 endpoint 從 production.fear-and-greed-cnn.com 遷移至 production.dataviz.cnn.io
+    # 且對預設 UA 會回 403/418，需帶完整瀏覽器 headers (Origin/Referer)
+    start = (now_et().date() - timedelta(days=180)).strftime("%Y-%m-%d")
+    endpoints = [
+        f"https://production.dataviz.cnn.io/index/fearandgreed/graphdata/{start}",  # 新版
+        "https://production.fear-and-greed-cnn.com/graphdata",                       # 舊版備援
+    ]
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Origin": "https://www.cnn.com",
+        "Referer": "https://www.cnn.com/",
+    }
+    for url in endpoints:
+        try:
+            r = requests.get(url, headers=headers, timeout=20)
+            r.raise_for_status()
+            j = r.json()
+            fg = j.get("fear_and_greed", {})
+            score = round(float(fg.get("score", 0)), 1)
+            rating = fg.get("rating", "")
+            hist = []
+            for d in (j.get("fear_and_greed_historical", {}).get("data", []))[-90:]:
+                try:
+                    ts = int(d.get("x", 0)) / 1000
+                    hist.append({"date": datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d"),
+                                 "score": round(float(d.get("y", 0)), 1)})
+                except Exception:
+                    continue
+            if score or hist:
+                print(f"  ✓ Fear & Greed: {score} ({rating}) via {url.split('/')[2]}")
+                return {"score": score, "rating": rating, "history": hist,
+                        "prev_close": round(float(fg.get("previous_close", 0)), 1)}
+        except Exception as e:
+            print(f"    [Warn] Fear & Greed {url.split('/')[2]} 失敗: {e}")
+            continue
+    return {"score": 0, "rating": "n/a", "history": [], "prev_close": 0}
 
 def get_sector_performance():
     out = []
@@ -384,8 +403,97 @@ def get_yields():
             out.append({"label": label, "value": round(q["close"], 2), "change": round(q["change"], 3)})
     return out
 
+def get_index_returns(symbol: str):
+    """回傳指數 1日/5日/20日/YTD 漲幅 (%)"""
+    try:
+        df = yf.Ticker(symbol).history(period="1y")
+        if df is None or df.empty:
+            return None
+        closes = df[df["Close"] > 0]["Close"].dropna()
+        if closes.empty:
+            return None
+        c = float(closes.iloc[-1])
+
+        def ret(n):
+            return round(((c / float(closes.iloc[-1 - n])) - 1) * 100, 2) if len(closes) > n else None
+
+        # YTD: 以去年最後一個交易日收盤為基準 (更精確)，否則用今年首個交易日
+        this_year = closes.index[-1].year
+        prev_year = closes[closes.index.year < this_year]
+        ytd_base = closes[closes.index.year == this_year]
+        if len(prev_year) > 0:
+            ytd = round((c / float(prev_year.iloc[-1]) - 1) * 100, 2)
+        elif len(ytd_base) > 0:
+            ytd = round((c / float(ytd_base.iloc[0]) - 1) * 100, 2)
+        else:
+            ytd = None
+        return {"close": c, "d1": ret(1), "d5": ret(5), "d20": ret(20), "ytd": ytd}
+    except Exception as e:
+        print(f"    [Warn] {symbol} 漲幅抓取失敗: {e}")
+        return None
+
+def get_index_full_series(symbol: str, period: str = "1y"):
+    """完整指數序列 (K線 + 量 + MA20 + Supertrend + KD + MACD)，回傳近 120 筆字典清單"""
+    try:
+        df = yf.Ticker(symbol).history(period=period)
+        if df is None or df.empty:
+            return []
+        df = df[df["Close"] > 0].copy()
+        df["SMA_20"] = calculate_sma(df["Close"], 20)
+        df["MACD"], df["MACD_Signal"] = calculate_macd(df["Close"])
+        df["MACD_Hist"] = df["MACD"] - df["MACD_Signal"]
+        df["K"], df["D"] = calculate_stochastic(df["High"], df["Low"], df["Close"])
+        df["ST"], df["ST_DIR"] = calculate_supertrend(df, 10, 3)
+
+        def _n(v, dec=2):
+            return round(float(v), dec) if pd.notna(v) else None
+
+        out = []
+        for idx, r in df.tail(120).iterrows():
+            out.append({
+                "date": idx.strftime("%Y-%m-%d"),
+                "open": _n(r["Open"]), "high": _n(r["High"]), "low": _n(r["Low"]), "close": _n(r["Close"]),
+                "volume": int(r["Volume"]) if pd.notna(r["Volume"]) else 0,
+                "ma20": _n(r.get("SMA_20")),
+                "st": _n(r.get("ST")), "st_dir": int(r.get("ST_DIR")) if pd.notna(r.get("ST_DIR")) else 0,
+                "k": _n(r.get("K")), "d": _n(r.get("D")),
+                "macd": _n(r.get("MACD"), 3), "macd_sig": _n(r.get("MACD_Signal"), 3), "macd_hist": _n(r.get("MACD_Hist"), 3),
+            })
+        return out
+    except Exception as e:
+        print(f"    [Warn] {symbol} 完整序列抓取失敗: {e}")
+        return []
+
+def get_yield_curve_series(period: str = "6mo"):
+    """美債 2/10/30 年殖利率歷史線圖資料 (對齊日期)"""
+    # 2年期: Yahoo 無原生指數，改用 CBOT 2-Year Yield 期貨 2YY=F
+    syms = [("2YY=F", "2年"), ("^TNX", "10年"), ("^TYX", "30年")]
+    raw = {}
+    for sym, label in syms:
+        try:
+            df = yf.Ticker(sym).history(period=period)
+            if df is None or df.empty:
+                continue
+            s = df["Close"].dropna()
+            raw[label] = {d.strftime("%Y-%m-%d"): round(float(v), 3) for d, v in s.items()}
+        except Exception as e:
+            print(f"    [Warn] 殖利率 {sym} 抓取失敗: {e}")
+            continue
+    if not raw:
+        return {"dates": [], "series": {}}
+    all_dates = sorted(set().union(*[set(v.keys()) for v in raw.values()]))
+    series = {label: [raw[label].get(dt) for dt in all_dates] for label in raw}
+    return {"dates": [d[-5:] for d in all_dates], "series": series}
+
 def get_market_overview():
     md = {}
+    print("  抓取指數漲幅 (道瓊/S&P/那斯達克/費半)...")
+    md["index_returns"] = {
+        "道瓊": get_index_returns("^DJI"),
+        "S&P 500": get_index_returns("^GSPC"),
+        "那斯達克": get_index_returns("^IXIC"),
+        "費城半導體": get_index_returns("^SOX"),
+    }
     md["spx"] = get_index_series("^GSPC")
     md["indices"] = {
         "S&P 500": get_quote("^GSPC"),
@@ -393,8 +501,16 @@ def get_market_overview():
         "道瓊": get_quote("^DJI"),
         "VIX": get_quote("^VIX"),
     }
+    print("  抓取那斯達克 / 費半 K線...")
+    md["nasdaq_series"] = get_index_full_series("^IXIC")
+    md["sox_series"] = get_index_full_series("^SOX")
     md["vix_series"] = get_index_series("^VIX")
+    md["vix_quote"] = get_quote("^VIX")
     md["fear_greed"] = get_fear_greed()
+    print("  抓取美債殖利率 / DXY...")
+    md["yield_curve"] = get_yield_curve_series()
+    md["dxy_series"] = get_index_series("DX-Y.NYB")
+    md["dxy_quote"] = get_quote("DX-Y.NYB")
     md["sectors"] = get_sector_performance()
     md["yields"] = get_yields()
     return md
@@ -666,49 +782,88 @@ def generate_stock_card(ticker: str, data: dict, opt: dict, fund: dict) -> str:
     </div>"""
 
 def generate_market_section(md: dict):
-    idx = md.get("indices", {})
+    idx_ret = md.get("index_returns", {})
     fg = md.get("fear_greed", {})
 
-    def index_card(name, q, accent=False):
-        if not q: return f'<div class="metric"><div class="label">{name}</div><div class="value num">-</div></div>'
-        cls = "up" if q["change"] >= 0 else "down"
-        arrow = "▲" if q["change"] >= 0 else "▼"
+    def ret_cell(v):
+        if v is None:
+            return '<div class="rc"><div class="rcv num">-</div></div>'
+        cls = "up" if v >= 0 else "down"
+        return f'<div class="rc"><div class="rcv num {cls}">{v:+.2f}%</div></div>'
+
+    def index_return_card(name, r, accent=False):
+        if not r:
+            return f'<div class="metric"><div class="label">{name}</div><div class="value num">-</div></div>'
+        d1 = r.get("d1")
+        cls = "up" if (d1 is not None and d1 >= 0) else "down"
         extra = "accent" if accent else cls
-        return f'''<div class="metric {extra}"><div class="label">{name}</div><div class="value num {cls}">{q["close"]:,.2f}</div>
-          <div class="change {cls}"><span class="chip chip-{cls}">{arrow} {q["change"]:+.2f}</span><span class="num">{q["change_pct"]:+.2f}%</span></div></div>'''
+        cells = "".join([
+            f'<div class="rc-head"><div class="rcl">1日</div>{ret_cell(r.get("d1"))}</div>',
+            f'<div class="rc-head"><div class="rcl">5日</div>{ret_cell(r.get("d5"))}</div>',
+            f'<div class="rc-head"><div class="rcl">20日</div>{ret_cell(r.get("d20"))}</div>',
+            f'<div class="rc-head"><div class="rcl">YTD</div>{ret_cell(r.get("ytd"))}</div>',
+        ])
+        return f'''<div class="metric {extra}">
+          <div class="label">{name}</div>
+          <div class="value num {cls}">{r["close"]:,.2f}</div>
+          <div class="ret-row">{cells}</div>
+        </div>'''
 
-    # VIX 顏色邏輯相反(高VIX=恐慌=紅)
-    vix_q = idx.get("VIX")
-    vix_card = '<div class="metric"><div class="label">VIX 波動率</div><div class="value num">-</div></div>'
-    if vix_q:
-        vcls = "down" if vix_q["change"] >= 0 else "up"
-        vix_card = f'''<div class="metric"><div class="label">VIX 波動率</div><div class="value num">{vix_q["close"]:,.2f}</div>
-          <div class="change {vcls}"><span class="chip chip-{vcls}">{'▲' if vix_q["change"]>=0 else '▼'} {vix_q["change"]:+.2f}</span></div></div>'''
+    metrics = (index_return_card("道瓊", idx_ret.get("道瓊"))
+               + index_return_card("S&P 500", idx_ret.get("S&P 500"), accent=True)
+               + index_return_card("那斯達克", idx_ret.get("那斯達克"))
+               + index_return_card("費城半導體", idx_ret.get("費城半導體")))
 
-    metrics = (index_card("S&P 500", idx.get("S&P 500"), accent=True) + index_card("Nasdaq", idx.get("Nasdaq"))
-               + index_card("道瓊", idx.get("道瓊")) + vix_card)
+    # VIX 即時數值 (高 VIX = 恐慌 = 紅)
+    vq = md.get("vix_quote")
+    vix_badge = ""
+    if vq:
+        vcls = "down" if vq["change"] >= 0 else "up"
+        arrow = "▲" if vq["change"] >= 0 else "▼"
+        vix_badge = f'<span class="vix-now num">{vq["close"]:.2f} <span class="{vcls}">{arrow} {vq["change"]:+.2f}</span></span>'
 
-    # 殖利率列
+    # 即時殖利率快照
     yields_html = ""
     for y in md.get("yields", []):
         ycls = "up" if y["change"] >= 0 else "down"
         yields_html += f'<div class="yield-cell"><div class="yl">{y["label"]}</div><div class="yv num">{y["value"]:.2f}%</div><div class="yc num {ycls}">{y["change"]:+.3f}</div></div>'
 
+    # DXY 即時數值
+    dq = md.get("dxy_quote")
+    dxy_badge = ""
+    if dq:
+        dcls = "up" if dq["change"] >= 0 else "down"
+        arrow = "▲" if dq["change"] >= 0 else "▼"
+        dxy_badge = f'<span class="vix-now num">{dq["close"]:.2f} <span class="{dcls}">{arrow} {dq["change"]:+.2f} ({dq["change_pct"]:+.2f}%)</span></span>'
+
     return f"""<div class="section-head"><span class="eyebrow">US Market</span><h2>大盤總覽</h2></div>
-    <div class="metrics">{metrics}</div>
+    <div class="metrics metrics-4">{metrics}</div>
+
+    <div class="card"><div class="card-title"><span>那斯達克綜合指數 · K線 / MA20 / 成交量 / Supertrend / KD / MACD</span></div>
+      <div id="nasdaq_chart" class="chart-box" style="height:600px;"></div></div>
+
+    <div class="card"><div class="card-title"><span>費城半導體指數 (SOX) · K線 / MA20 / 成交量 / Supertrend / KD / MACD</span></div>
+      <div id="sox_chart" class="chart-box" style="height:600px;"></div></div>
 
     <div class="grid-2-market">
-      <div class="card"><div class="card-title"><span>S&P 500 · 近 120 交易日 (K線 + MA20 + VIX)</span></div>
-        <div id="spx_chart" class="chart-box" style="height:420px;"></div></div>
+      <div class="card"><div class="card-title"><span>VIX 波動率指數 · 近 120 交易日</span>{vix_badge}</div>
+        <div id="vix_chart" class="chart-box" style="height:300px;"></div></div>
       <div class="card fg-card"><div class="card-title"><span>CNN Fear &amp; Greed</span></div>
-        <div id="fg_gauge" class="chart-box" style="height:240px;"></div>
+        <div id="fg_gauge" class="chart-box" style="height:200px;"></div>
         <div class="fg-meta"><span>指數 <b class="num">{fg.get('score','-')}</b></span><span class="fg-rating">{fg.get('rating','')}</span><span>前日 {fg.get('prev_close','-')}</span></div>
+        <div id="fg_chart" class="chart-box" style="height:120px;margin-top:8px"></div>
       </div>
     </div>
 
-    <div class="card"><div class="card-title"><span>美債殖利率</span></div>
+    <div class="card"><div class="card-title"><span>美債殖利率即時</span></div>
       <div class="yields-row">{yields_html or '<span style=color:var(--ink-3)>查無資料</span>'}</div>
     </div>
+
+    <div class="card"><div class="card-title"><span>美債殖利率走勢 · 2 / 10 / 30 年 (%)</span></div>
+      <div id="yield_chart" class="chart-box" style="height:340px;"></div></div>
+
+    <div class="card"><div class="card-title"><span>美元指數 DXY · 近 120 交易日</span>{dxy_badge}</div>
+      <div id="dxy_chart" class="chart-box" style="height:320px;"></div></div>
 
     <div class="card"><div class="card-title"><span>類股輪動 · 近一個月表現 (%)</span></div>
       <div id="sector_chart" class="chart-box" style="height:360px;"></div></div>"""
@@ -716,6 +871,91 @@ def generate_market_section(md: dict):
 # =========================================================
 # 圖表腳本
 # =========================================================
+def _index_kline_script(div_id: str, var: str, series: list, T: dict) -> str:
+    """產生指數 K線圖 script: K線 + MA20 + 成交量 + Supertrend + KD + MACD"""
+    if not series:
+        return f"""
+var {var} = echarts.init(document.getElementById('{div_id}'));
+{var}.setOption({{ title: {{ text: '查無資料', left: 'center', top: 'center', textStyle: {{color: '{T["axis_label"]}', fontSize: 13}} }} }});
+"""
+    dates = [d["date"][-5:] for d in series]
+    ohlc = [[d["open"], d["close"], d["low"], d["high"]] for d in series]
+    vol = [d["volume"] for d in series]
+    vol_color = [T["up"] if d["close"] >= d["open"] else T["down"] for d in series]
+    ma20 = [d["ma20"] for d in series]
+    has_vol = any(v and v > 0 for v in vol)
+
+    # Supertrend 拆多空兩條 (切換點補值避免斷裂)
+    st_up, st_dn = [], []
+    for i, d in enumerate(series):
+        cur, v = d["st_dir"], d["st"]
+        prev = series[i - 1]["st_dir"] if i > 0 else cur
+        if cur == 1:
+            st_up.append(v); st_dn.append(v if prev == -1 else None)
+        elif cur == -1:
+            st_dn.append(v); st_up.append(v if prev == 1 else None)
+        else:
+            st_up.append(None); st_dn.append(None)
+
+    k = [d["k"] for d in series]
+    dd = [d["d"] for d in series]
+    macd = [d["macd"] for d in series]
+    macd_sig = [d["macd_sig"] for d in series]
+    macd_hist = [d["macd_hist"] for d in series]
+    macd_hist_color = [T["up"] if (v is not None and v >= 0) else T["down"] for v in macd_hist]
+
+    vol_series = (f""",
+    {{ name: '成交量', type: 'bar', xAxisIndex: 0, yAxisIndex: 1, data: {json.dumps(vol)}, itemStyle: {{color: function(p){{return {json.dumps(vol_color)}[p.dataIndex];}}}} }}""" if has_vol else "")
+
+    return f"""
+var {var} = echarts.init(document.getElementById('{div_id}'));
+{var}.setOption({{
+  title: [
+    {{ text: 'K線 · MA20 · Supertrend', left: '6%', top: '1%', textStyle: {{fontSize: 12, color: '{T["title"]}'}} }},
+    {{ text: 'KD(14,3,3)', left: '6%', top: '60%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
+    {{ text: 'MACD(12,26,9)', left: '6%', top: '80%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
+  ],
+  legend: {{ data: ['MA20','Supertrend↑','Supertrend↓','K','D'], top: '1%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+  tooltip: {{ trigger: 'axis', axisPointer: {{ type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}} }},
+    backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1,
+    textStyle: {{color: '{T["tooltip_text"]}', fontSize: 12, fontFamily: 'IBM Plex Mono'}} }},
+  axisPointer: {{ link: {{xAxisIndex: 'all'}} }},
+  grid: [
+    {{ left: '6%', right: '6%', top: '5%', height: '48%' }},
+    {{ left: '6%', right: '6%', top: '63%', height: '13%' }},
+    {{ left: '6%', right: '6%', top: '83%', height: '12%' }}
+  ],
+  xAxis: [
+    {{ type: 'category', gridIndex: 0, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+    {{ type: 'category', gridIndex: 1, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: false}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+    {{ type: 'category', gridIndex: 2, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}
+  ],
+  yAxis: [
+    {{ scale: true, gridIndex: 0, splitNumber: 5, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0);}}}} }},
+    {{ scale: true, gridIndex: 0, show: false, max: function(v){{return Math.max(v.max*6,1);}} }},
+    {{ scale: false, gridIndex: 1, min: 0, max: 100, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+    {{ scale: true, gridIndex: 2, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }}
+  ],
+  dataZoom: [
+    {{ type: 'inside', xAxisIndex: [0,1,2], start: 40, end: 100 }},
+    {{ show: true, type: 'slider', xAxisIndex: [0,1,2], bottom: 8, height: 14, start: 40, end: 100, borderColor: '{T["dz_border"]}', fillerColor: '{T["dz_filler"]}', handleStyle: {{color: '{T["dz_handle"]}'}}, textStyle: {{color: '{T["dz_text"]}'}}, dataBackground: {{lineStyle: {{color: '{T["dz_bg_line"]}'}}, areaStyle: {{color: '{T["dz_bg_area"]}'}}}} }}
+  ],
+  series: [
+    {{ name: 'K線', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ohlc)}, itemStyle: {{color: '{T["up"]}', color0: '{T["down"]}', borderColor: '{T["up"]}', borderColor0: '{T["down"]}'}} }},
+    {{ name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
+    {{ name: 'Supertrend↑', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_up)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["up"]}'}} }},
+    {{ name: 'Supertrend↓', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_dn)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["down"]}'}} }}{vol_series},
+    {{ name: 'K', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(k)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.2, color: '{T["rsi"]}'}},
+       markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 80, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}}}, {{yAxis: 20, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }} }},
+    {{ name: 'D', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(dd)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.2, color: '{T["ma20"]}'}} }},
+    {{ name: 'DIF', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
+    {{ name: 'DEA', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_sig)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
+    {{ name: 'MACD', type: 'bar', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_hist)}, itemStyle: {{color: function(p){{return {json.dumps(macd_hist_color)}[p.dataIndex];}}}} }}
+  ]
+}});
+window.addEventListener('resize', function(){{ {var}.resize(); }});
+"""
+
 def generate_chart_scripts(stocks_data, options_data, md):
     T = THEME
     scripts = []
@@ -809,34 +1049,72 @@ oc_{tk}.setOption({{
 window.addEventListener('resize', function(){{ oc_{tk}.resize(); }});
 """)
 
-    # 大盤 S&P + VIX
-    spx = md.get("spx", [])
+    # 那斯達克 / 費城半導體 K線圖 (K線+量+Supertrend+KD+MACD)
+    scripts.append(_index_kline_script("nasdaq_chart", "ndxc", md.get("nasdaq_series", []), T))
+    scripts.append(_index_kline_script("sox_chart", "soxc", md.get("sox_series", []), T))
+
+    # VIX 走勢線圖
     vix_series = md.get("vix_series", [])
-    if spx:
-        sdates = [d["date"][-5:] for d in spx]
-        sohlc = [[d["open"], d["close"], d["low"], d["high"]] for d in spx]
-        sma20 = [d.get("ma20") for d in spx]
-        vix_map = {d["date"][-5:]: d["close"] for d in vix_series}
-        vix_aligned = [round(vix_map.get(dt), 2) if vix_map.get(dt) is not None else None for dt in sdates]
+    if vix_series:
+        vdates = [d["date"][-5:] for d in vix_series]
+        vvals = [round(d["close"], 2) for d in vix_series]
         scripts.append(f"""
-var spxc = echarts.init(document.getElementById('spx_chart'));
-spxc.setOption({{
-  legend: {{ data: ['MA20','VIX(右)'], top: '2%', right: '5%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+var vixc = echarts.init(document.getElementById('vix_chart'));
+vixc.setOption({{
   tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}} }},
-  grid: {{ left: '8%', right: '8%', top: '12%', bottom: '14%' }},
-  xAxis: {{ type: 'category', data: {json.dumps(sdates)}, boundaryGap: true, axisLabel: {{fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
-  yAxis: [
-    {{ scale: true, splitNumber: 5, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0);}}}} }},
-    {{ scale: true, splitNumber: 4, position: 'right', splitLine: {{show: false}}, axisLabel: {{fontSize: 9, color: '{T["vix"]}'}} }}
-  ],
-  dataZoom: [{{type: 'inside', start: 30, end: 100}}, {{type: 'slider', bottom: 4, height: 13, start: 30, end: 100, borderColor: '{T["dz_border"]}', fillerColor: '{T["dz_filler"]}', handleStyle: {{color: '{T["dz_handle"]}'}}, textStyle: {{color: '{T["dz_text"]}'}}, dataBackground: {{lineStyle: {{color: '{T["dz_bg_line"]}'}}, areaStyle: {{color: '{T["dz_bg_area"]}'}}}}}}],
+  grid: {{ left: '10%', right: '6%', top: '8%', bottom: '12%' }},
+  xAxis: {{ type: 'category', data: {json.dumps(vdates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+  yAxis: {{ scale: true, splitNumber: 4, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}} }},
+  series: [{{ name: 'VIX', type: 'line', data: {json.dumps(vvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.5, color: '{T["vix"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.12)'}},
+    markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 20, lineStyle: {{color: '{T["neutral"]}', type: 'dashed', width: 0.8}}, label: {{formatter: '20', color: '{T["neutral"]}', fontSize: 9}}}}, {{yAxis: 30, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}, label: {{formatter: '30 恐慌', color: '{T["down"]}', fontSize: 9}}}}] }} }}]
+}});
+window.addEventListener('resize', function(){{ vixc.resize(); }});
+""")
+
+    # 美債殖利率 2/10/30 年走勢
+    yc = md.get("yield_curve", {})
+    if yc.get("dates"):
+        yseries = yc.get("series", {})
+        line_colors = {"2年": T["rsi"], "10年": T["ma20"], "30年": T["ma200"]}
+        yseries_js = ",\n    ".join([
+            f"""{{ name: '{label}', type: 'line', data: {json.dumps(vals)}, smooth: true, showSymbol: false, connectNulls: true, lineStyle: {{width: 1.6, color: '{line_colors.get(label, T["rsi"])}'}} }}"""
+            for label, vals in yseries.items()
+        ])
+        scripts.append(f"""
+var yldc = echarts.init(document.getElementById('yield_chart'));
+yldc.setOption({{
+  legend: {{ data: {json.dumps(list(yseries.keys()))}, top: '2%', right: '5%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+  tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}}, valueFormatter: function(v){{return v==null?'-':v.toFixed(3)+'%';}} }},
+  grid: {{ left: '8%', right: '6%', top: '14%', bottom: '10%' }},
+  xAxis: {{ type: 'category', data: {json.dumps(yc["dates"])}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+  yAxis: {{ scale: true, splitNumber: 5, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}} }},
   series: [
-    {{ name: 'S&P500', type: 'candlestick', yAxisIndex: 0, data: {json.dumps(sohlc)}, itemStyle: {{color: '{T["up"]}', color0: '{T["down"]}', borderColor: '{T["up"]}', borderColor0: '{T["down"]}'}} }},
-    {{ name: 'MA20', type: 'line', yAxisIndex: 0, data: {json.dumps(sma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["ma20"]}'}} }},
-    {{ name: 'VIX(右)', type: 'line', yAxisIndex: 1, data: {json.dumps(vix_aligned)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.2, color: '{T["vix"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.08)'}} }}
+    {yseries_js}
   ]
 }});
-window.addEventListener('resize', function(){{ spxc.resize(); }});
+window.addEventListener('resize', function(){{ yldc.resize(); }});
+""")
+
+    # 美元指數 DXY
+    dxy_series = md.get("dxy_series", [])
+    if dxy_series:
+        ddates = [d["date"][-5:] for d in dxy_series]
+        dvals = [round(d["close"], 3) for d in dxy_series]
+        dma20 = [d.get("ma20") for d in dxy_series]
+        scripts.append(f"""
+var dxyc = echarts.init(document.getElementById('dxy_chart'));
+dxyc.setOption({{
+  legend: {{ data: ['DXY','MA20'], top: '2%', right: '5%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+  tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}} }},
+  grid: {{ left: '8%', right: '6%', top: '12%', bottom: '10%' }},
+  xAxis: {{ type: 'category', data: {json.dumps(ddates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+  yAxis: {{ scale: true, splitNumber: 4, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(1);}}}} }},
+  series: [
+    {{ name: 'DXY', type: 'line', data: {json.dumps(dvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.6, color: '{T["accent"] if "accent" in T else T["rsi"]}'}}, areaStyle: {{color: 'rgba(77,127,255,0.10)'}} }},
+    {{ name: 'MA20', type: 'line', data: {json.dumps(dma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }}
+  ]
+}});
+window.addEventListener('resize', function(){{ dxyc.resize(); }});
 """)
 
     # Fear & Greed 儀表
@@ -857,6 +1135,24 @@ fgg.setOption({{
   }}]
 }});
 window.addEventListener('resize', function(){{ fgg.resize(); }});
+""")
+
+    # Fear & Greed 歷史走勢
+    fg_hist = fg.get("history", [])
+    if fg_hist:
+        fgdates = [d["date"][-5:] for d in fg_hist]
+        fgvals = [d["score"] for d in fg_hist]
+        scripts.append(f"""
+var fghc = echarts.init(document.getElementById('fg_chart'));
+fghc.setOption({{
+  tooltip: {{ trigger: 'axis', backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}} }},
+  grid: {{ left: '10%', right: '4%', top: '8%', bottom: '16%' }},
+  xAxis: {{ type: 'category', data: {json.dumps(fgdates)}, boundaryGap: false, axisLabel: {{fontSize: 8, color: '{T["axis_label"]}', interval: 14}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+  yAxis: {{ min: 0, max: 100, splitNumber: 2, axisLabel: {{fontSize: 8, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+  series: [{{ type: 'line', data: {json.dumps(fgvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["rsi"]}'}}, areaStyle: {{color: 'rgba(111,155,255,0.10)'}},
+    markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 25, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.6}}}}, {{yAxis: 75, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.6}}}}], label: {{show: false}} }} }}]
+}});
+window.addEventListener('resize', function(){{ fghc.resize(); }});
 """)
 
     # 類股輪動
@@ -945,6 +1241,12 @@ body{font-family:var(--sans);color:var(--ink);line-height:1.5;padding:20px;min-h
 .metric .change{font-size:11.5px;font-weight:600;margin-top:7px;display:inline-flex;align-items:center;gap:5px}
 .metric .chip{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:5px;font-size:10.5px}
 .chip-up{background:var(--up-soft);color:var(--up)} .chip-down{background:var(--down-soft);color:var(--down)}
+.ret-row{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line-2)}
+.rc-head{text-align:center}
+.rc-head .rcl{font-size:9px;color:var(--ink-3);font-weight:600;letter-spacing:.04em;margin-bottom:2px}
+.rc .rcv{font-size:11.5px;font-weight:600}
+.vix-now{font-size:13px;font-weight:600;color:var(--ink)}
+.vix-now .up{color:var(--up)} .vix-now .down{color:var(--down)}
 .rating-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
 .rating-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:13px;border-bottom:1px solid var(--line)}
 .rating-top h3{font-size:14px;font-weight:700}
