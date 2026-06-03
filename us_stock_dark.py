@@ -511,6 +511,7 @@ def get_market_overview():
     md["yield_curve"] = get_yield_curve_series()
     md["dxy_series"] = get_index_series("DX-Y.NYB")
     md["dxy_quote"] = get_quote("DX-Y.NYB")
+    md["tnx_series"] = get_index_series("^TNX")  # 10Y 殖利率歷史 (宏觀情緒對比用)
     md["sectors"] = get_sector_performance()
     md["yields"] = get_yields()
     return md
@@ -839,19 +840,61 @@ def generate_market_section(md: dict):
     return f"""<div class="section-head"><span class="eyebrow">US Market</span><h2>大盤總覽</h2></div>
     <div class="metrics metrics-4">{metrics}</div>
 
-    <div class="card"><div class="card-title"><span>那斯達克綜合指數 · K線 / MA20 / 成交量 / Supertrend / KD / MACD</span></div>
-      <div id="nasdaq_chart" class="chart-box" style="height:600px;"></div></div>
+    <div class="ctrl">
+      <span class="ctrl-lbl">指數</span>
+      <div class="seg" id="seg">
+        <button class="on" data-idx="ndx" onclick="switchIndex(this)">那斯達克</button>
+        <button data-idx="sox" onclick="switchIndex(this)">費城半導體</button>
+      </div>
+      <span class="sep"></span>
+      <span class="ctrl-lbl">指標</span>
+      <div class="chips" id="chips">
+        <span class="chip on" data-k="kd" onclick="toggleChip(this)"><span class="dot"></span>KD</span>
+        <span class="chip on" data-k="macd" onclick="toggleChip(this)"><span class="dot"></span>MACD</span>
+        <span class="chip on" data-k="vix" onclick="toggleChip(this)"><span class="dot"></span>VIX</span>
+        <span class="chip" data-k="fg" onclick="toggleChip(this)"><span class="dot"></span>CNN F&amp;G</span>
+        <span class="chip" data-k="tnx" onclick="toggleChip(this)"><span class="dot"></span>10Y</span>
+        <span class="chip" data-k="dxy" onclick="toggleChip(this)"><span class="dot"></span>DXY</span>
+      </div>
+      <span class="cnt" id="cnt">3 個</span>
+    </div>
 
-    <div class="card"><div class="card-title"><span>費城半導體指數 (SOX) · K線 / MA20 / 成交量 / Supertrend / KD / MACD</span></div>
-      <div id="sox_chart" class="chart-box" style="height:600px;"></div></div>
+    <div class="stack">
+      <div class="pane index-card" data-idx="ndx">
+        <div id="nasdaq_chart" class="chart-box" style="height:300px;"></div>
+      </div>
+      <div class="pane index-card" data-idx="sox" style="display:none">
+        <div id="sox_chart" class="chart-box" style="height:300px;"></div>
+      </div>
 
-    <div class="grid-2-market">
-      <div class="card"><div class="card-title"><span>VIX 波動率指數 · 近 120 交易日</span>{vix_badge}</div>
-        <div id="vix_chart" class="chart-box" style="height:300px;"></div></div>
-      <div class="card fg-card"><div class="card-title"><span>CNN Fear &amp; Greed</span></div>
-        <div id="fg_gauge" class="chart-box" style="height:200px;"></div>
-        <div class="fg-meta"><span>指數 <b class="num">{fg.get('score','-')}</b></span><span class="fg-rating">{fg.get('rating','')}</span><span>前日 {fg.get('prev_close','-')}</span></div>
-        <div id="fg_chart" class="chart-box" style="height:120px;margin-top:8px"></div>
+      <div class="pane sub-panel kd-panel index-sub" data-idx="ndx">
+        <div id="kd_ndx_chart" class="chart-box" style="height:115px;"></div>
+      </div>
+      <div class="pane sub-panel kd-panel index-sub" data-idx="sox" style="display:none">
+        <div id="kd_sox_chart" class="chart-box" style="height:115px;"></div>
+      </div>
+
+      <div class="pane sub-panel macd-panel index-sub" data-idx="ndx">
+        <div id="nasdaq_macd" class="chart-box" style="height:115px;"></div>
+      </div>
+      <div class="pane sub-panel macd-panel index-sub" data-idx="sox" style="display:none">
+        <div id="sox_macd" class="chart-box" style="height:115px;"></div>
+      </div>
+
+      <div class="pane sub-panel vix-panel">
+        <div id="vix_chart" class="chart-box" style="height:115px;"></div>
+      </div>
+
+      <div class="pane sub-panel fg-panel" style="display:none">
+        <div id="fg_chart" class="chart-box" style="height:115px;"></div>
+      </div>
+
+      <div class="pane sub-panel tnx-panel" style="display:none">
+        <div id="tnx_chart" class="chart-box" style="height:115px;"></div>
+      </div>
+
+      <div class="pane sub-panel dxy-panel" style="display:none">
+        <div id="dxy_chart" class="chart-box" style="height:115px;"></div>
       </div>
     </div>
 
@@ -859,20 +902,17 @@ def generate_market_section(md: dict):
       <div class="yields-row">{yields_html or '<span style=color:var(--ink-3)>查無資料</span>'}</div>
     </div>
 
-    <div class="card"><div class="card-title"><span>美債殖利率走勢 · 2 / 10 / 30 年 (%)</span></div>
+    <div class="card"><div class="card-title"><span>美債殖利率走勢 · 2 / 10 / 30 年 (獨立左軸)</span></div>
       <div id="yield_chart" class="chart-box" style="height:340px;"></div></div>
 
-    <div class="card"><div class="card-title"><span>美元指數 DXY · 近 120 交易日</span>{dxy_badge}</div>
-      <div id="dxy_chart" class="chart-box" style="height:320px;"></div></div>
-
     <div class="card"><div class="card-title"><span>類股輪動 · 近一個月表現 (%)</span></div>
-      <div id="sector_chart" class="chart-box" style="height:360px;"></div></div>"""
+      <div id="sector_chart" class="chart-box" style="height:340px;"></div></div>"""
 
 # =========================================================
 # 圖表腳本
 # =========================================================
 def _index_kline_script(div_id: str, var: str, series: list, T: dict) -> str:
-    """產生指數 K線圖 script: K線 + MA20 + 成交量 + Supertrend + KD + MACD"""
+    """產生指數 K線圖 script: K線 + MA20 + 成交量 + Supertrend (主圖 only, KD/MACD 獨立)"""
     if not series:
         return f"""
 var {var} = echarts.init(document.getElementById('{div_id}'));
@@ -897,60 +937,32 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
         else:
             st_up.append(None); st_dn.append(None)
 
-    k = [d["k"] for d in series]
-    dd = [d["d"] for d in series]
-    macd = [d["macd"] for d in series]
-    macd_sig = [d["macd_sig"] for d in series]
-    macd_hist = [d["macd_hist"] for d in series]
-    macd_hist_color = [T["up"] if (v is not None and v >= 0) else T["down"] for v in macd_hist]
-
     vol_series = (f""",
-    {{ name: '成交量', type: 'bar', xAxisIndex: 0, yAxisIndex: 1, data: {json.dumps(vol)}, itemStyle: {{color: function(p){{return {json.dumps(vol_color)}[p.dataIndex];}}}} }}""" if has_vol else "")
+    {{ name: '成交量', type: 'bar', yAxisIndex: 1, data: {json.dumps(vol)}, itemStyle: {{color: function(p){{return {json.dumps(vol_color)}[p.dataIndex];}}}} }}""" if has_vol else "")
 
     return f"""
 var {var} = echarts.init(document.getElementById('{div_id}'));
 {var}.setOption({{
-  title: [
-    {{ text: 'K線 · MA20 · Supertrend', left: '6%', top: '1%', textStyle: {{fontSize: 12, color: '{T["title"]}'}} }},
-    {{ text: 'KD(14,3,3)', left: '6%', top: '60%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
-    {{ text: 'MACD(12,26,9)', left: '6%', top: '80%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
-  ],
-  legend: {{ data: ['MA20','Supertrend↑','Supertrend↓','K','D'], top: '1%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+  title: [{{ text: 'K線 · MA20 · Supertrend', left: '6%', top: '1%', textStyle: {{fontSize: 12, color: '{T["title"]}'}} }}],
+  legend: {{ data: ['MA20','Supertrend↑','Supertrend↓'], top: '1%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
   tooltip: {{ trigger: 'axis', axisPointer: {{ type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}} }},
     backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1,
     textStyle: {{color: '{T["tooltip_text"]}', fontSize: 12, fontFamily: 'IBM Plex Mono'}} }},
-  axisPointer: {{ link: {{xAxisIndex: 'all'}} }},
-  grid: [
-    {{ left: '6%', right: '6%', top: '5%', height: '48%' }},
-    {{ left: '6%', right: '6%', top: '63%', height: '13%' }},
-    {{ left: '6%', right: '6%', top: '83%', height: '12%' }}
-  ],
-  xAxis: [
-    {{ type: 'category', gridIndex: 0, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
-    {{ type: 'category', gridIndex: 1, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: false}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
-    {{ type: 'category', gridIndex: 2, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}
-  ],
+  grid: [{{ left: '6%', right: '6%', top: '8%', bottom: '14%' }}],
+  xAxis: [{{ type: 'category', data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}],
   yAxis: [
-    {{ scale: true, gridIndex: 0, splitNumber: 5, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0);}}}} }},
-    {{ scale: true, gridIndex: 0, show: false, max: function(v){{return Math.max(v.max*6,1);}} }},
-    {{ scale: false, gridIndex: 1, min: 0, max: 100, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
-    {{ scale: true, gridIndex: 2, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }}
+    {{ scale: true, splitNumber: 5, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0);}}}} }},
+    {{ scale: true, show: false, max: function(v){{return Math.max(v.max*6,1);}} }}
   ],
   dataZoom: [
-    {{ type: 'inside', xAxisIndex: [0,1,2], start: 40, end: 100 }},
-    {{ show: true, type: 'slider', xAxisIndex: [0,1,2], bottom: 8, height: 14, start: 40, end: 100, borderColor: '{T["dz_border"]}', fillerColor: '{T["dz_filler"]}', handleStyle: {{color: '{T["dz_handle"]}'}}, textStyle: {{color: '{T["dz_text"]}'}}, dataBackground: {{lineStyle: {{color: '{T["dz_bg_line"]}'}}, areaStyle: {{color: '{T["dz_bg_area"]}'}}}} }}
+    {{ type: 'inside', start: 40, end: 100 }},
+    {{ show: true, type: 'slider', bottom: 4, height: 14, start: 40, end: 100, borderColor: '{T["dz_border"]}', fillerColor: '{T["dz_filler"]}', handleStyle: {{color: '{T["dz_handle"]}'}}, textStyle: {{color: '{T["dz_text"]}'}}, dataBackground: {{lineStyle: {{color: '{T["dz_bg_line"]}'}}, areaStyle: {{color: '{T["dz_bg_area"]}'}}}} }}
   ],
   series: [
-    {{ name: 'K線', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ohlc)}, itemStyle: {{color: '{T["up"]}', color0: '{T["down"]}', borderColor: '{T["up"]}', borderColor0: '{T["down"]}'}} }},
-    {{ name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
-    {{ name: 'Supertrend↑', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_up)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["up"]}'}} }},
-    {{ name: 'Supertrend↓', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_dn)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["down"]}'}} }}{vol_series},
-    {{ name: 'K', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(k)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.2, color: '{T["rsi"]}'}},
-       markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 80, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}}}, {{yAxis: 20, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }} }},
-    {{ name: 'D', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(dd)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.2, color: '{T["ma20"]}'}} }},
-    {{ name: 'DIF', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
-    {{ name: 'DEA', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_sig)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
-    {{ name: 'MACD', type: 'bar', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_hist)}, itemStyle: {{color: function(p){{return {json.dumps(macd_hist_color)}[p.dataIndex];}}}} }}
+    {{ name: 'K線', type: 'candlestick', yAxisIndex: 0, data: {json.dumps(ohlc)}, itemStyle: {{color: '{T["up"]}', color0: '{T["down"]}', borderColor: '{T["up"]}', borderColor0: '{T["down"]}'}} }},
+    {{ name: 'MA20', type: 'line', yAxisIndex: 0, data: {json.dumps(ma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
+    {{ name: 'Supertrend↑', type: 'line', yAxisIndex: 0, data: {json.dumps(st_up)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["up"]}'}} }},
+    {{ name: 'Supertrend↓', type: 'line', yAxisIndex: 0, data: {json.dumps(st_dn)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["down"]}'}} }}{vol_series}
   ]
 }});
 window.addEventListener('resize', function(){{ {var}.resize(); }});
@@ -1049,11 +1061,70 @@ oc_{tk}.setOption({{
 window.addEventListener('resize', function(){{ oc_{tk}.resize(); }});
 """)
 
-    # 那斯達克 / 費城半導體 K線圖 (K線+量+Supertrend+KD+MACD)
-    scripts.append(_index_kline_script("nasdaq_chart", "ndxc", md.get("nasdaq_series", []), T))
-    scripts.append(_index_kline_script("sox_chart", "soxc", md.get("sox_series", []), T))
+    # 那斯達克 / 費城半導體 主圖 (K線+MA20+Supertrend+量)
+    ndx_s = md.get("nasdaq_series", [])
+    sox_s = md.get("sox_series", [])
+    scripts.append(_index_kline_script("nasdaq_chart", "ndxc", ndx_s, T))
+    scripts.append(_index_kline_script("sox_chart", "soxc", sox_s, T))
 
-    # VIX 走勢線圖
+    # --- MACD 獨立小圖 (那斯達克 + 費半各一個) ---
+    def _macd_script(div_id, var, series):
+        if not series: return ""
+        dates = [d["date"][-5:] for d in series]
+        macd = [d["macd"] for d in series]
+        macd_sig = [d["macd_sig"] for d in series]
+        macd_hist = [d["macd_hist"] for d in series]
+        mhc = [T["up"] if (v is not None and v >= 0) else T["down"] for v in macd_hist]
+        return f"""
+var {var} = echarts.init(document.getElementById('{div_id}'));
+{var}.setOption({{
+  title: [{{ text: 'MACD(12,26,9)', left: '6%', top: '4%', textStyle: {{fontSize: 10, color: '{T["title"]}'}} }}],
+  legend: {{ data: ['DIF','DEA','Hist'], top: '4%', right: '6%', textStyle: {{fontSize: 9, color: '{T["legend"]}'}}, itemWidth: 10, itemHeight: 7 }},
+  tooltip: {{ trigger: 'axis', backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}} }},
+  grid: {{ left: '6%', right: '6%', top: '28%', bottom: '20%' }},
+  xAxis: {{ type: 'category', data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+  yAxis: {{ scale: true, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+  dataZoom: [{{ type: 'inside', start: 40, end: 100 }}],
+  series: [
+    {{ name: 'DIF', type: 'line', data: {json.dumps(macd)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
+    {{ name: 'DEA', type: 'line', data: {json.dumps(macd_sig)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
+    {{ name: 'Hist', type: 'bar', data: {json.dumps(macd_hist)}, itemStyle: {{color: function(p){{return {json.dumps(mhc)}[p.dataIndex];}}}} }}
+  ]
+}});
+window.addEventListener('resize', function(){{ {var}.resize(); }});
+"""
+    scripts.append(_macd_script("nasdaq_macd", "ndxm", ndx_s))
+    scripts.append(_macd_script("sox_macd", "soxm", sox_s))
+
+    # --- 各指數獨立 KD 圖 (per-index, K/D 兩條線 + 80/20 參考線) ---
+    def _kd_script(div_id, var, series):
+        if not series: return ""
+        dates = [d["date"][-5:] for d in series]
+        k_vals = [d["k"] for d in series]
+        d_vals = [d["d"] for d in series]
+        return f"""
+var {var} = echarts.init(document.getElementById('{div_id}'));
+{var}.setOption({{
+  title: [{{ text: 'KD(14,3,3)', left: '6%', top: '4%', textStyle: {{fontSize: 10, color: '{T["title"]}'}} }}],
+  legend: {{ data: ['K','D'], top: '4%', right: '6%', textStyle: {{fontSize: 9, color: '{T["legend"]}'}}, itemWidth: 10, itemHeight: 7 }},
+  tooltip: {{ trigger: 'axis', backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}} }},
+  grid: {{ left: '6%', right: '6%', top: '28%', bottom: '20%' }},
+  xAxis: {{ type: 'category', data: {json.dumps(dates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+  yAxis: {{ min: 0, max: 100, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+  dataZoom: [{{ type: 'inside', start: 40, end: 100 }}],
+  series: [
+    {{ name: 'K', type: 'line', data: {json.dumps(k_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["rsi"]}'}},
+       markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 80, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}}}, {{yAxis: 20, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }} }},
+    {{ name: 'D', type: 'line', data: {json.dumps(d_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.2, color: '{T["ma20"]}'}} }}
+  ]
+}});
+window.addEventListener('resize', function(){{ {var}.resize(); }});
+"""
+    scripts.append(_kd_script("kd_ndx_chart", "ndxk", ndx_s))
+    scripts.append(_kd_script("kd_sox_chart", "soxk", sox_s))
+
+    # --- VIX 獨立線圖 ---
+    fg = md.get("fear_greed", {})
     vix_series = md.get("vix_series", [])
     if vix_series:
         vdates = [d["date"][-5:] for d in vix_series]
@@ -1061,33 +1132,93 @@ window.addEventListener('resize', function(){{ oc_{tk}.resize(); }});
         scripts.append(f"""
 var vixc = echarts.init(document.getElementById('vix_chart'));
 vixc.setOption({{
+  title: [{{ text: 'VIX 波動率', left: '6%', top: '4%', textStyle: {{fontSize: 10, color: '{T["title"]}'}} }}],
   tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}} }},
-  grid: {{ left: '10%', right: '6%', top: '8%', bottom: '12%' }},
+  grid: {{ left: '8%', right: '8%', top: '28%', bottom: '20%' }},
   xAxis: {{ type: 'category', data: {json.dumps(vdates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
-  yAxis: {{ scale: true, splitNumber: 4, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}} }},
-  series: [{{ name: 'VIX', type: 'line', data: {json.dumps(vvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.5, color: '{T["vix"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.12)'}},
-    markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 20, lineStyle: {{color: '{T["neutral"]}', type: 'dashed', width: 0.8}}, label: {{formatter: '20', color: '{T["neutral"]}', fontSize: 9}}}}, {{yAxis: 30, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}, label: {{formatter: '30 恐慌', color: '{T["down"]}', fontSize: 9}}}}] }} }}]
+  yAxis: {{ scale: true, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+  dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
+  series: [{{ name: 'VIX', type: 'line', data: {json.dumps(vvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.6, color: '{T["vix"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.12)'}},
+    markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 20, lineStyle: {{color: '{T["neutral"]}', type: 'dashed', width: 0.8}}, label: {{formatter: '20', color: '{T["neutral"]}', fontSize: 9, position: 'end'}}}}, {{yAxis: 30, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}, label: {{formatter: '30 恐慌', color: '{T["down"]}', fontSize: 9, position: 'end'}}}}] }} }}]
 }});
 window.addEventListener('resize', function(){{ vixc.resize(); }});
 """)
 
-    # 美債殖利率 2/10/30 年走勢
+    # --- CNN F&G 歷史線 (gauge 另外處理) ---
+    fg_hist = fg.get("history", [])
+    if fg_hist:
+        fgdates = [d["date"][-5:] for d in fg_hist]
+        fgvals = [d["score"] for d in fg_hist]
+        scripts.append(f"""
+var fghc = echarts.init(document.getElementById('fg_chart'));
+fghc.setOption({{
+  title: [{{ text: 'CNN Fear & Greed', left: '6%', top: '4%', textStyle: {{fontSize: 10, color: '{T["title"]}'}} }}],
+  tooltip: {{ trigger: 'axis', backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}} }},
+  grid: {{ left: '10%', right: '8%', top: '28%', bottom: '22%' }},
+  xAxis: {{ type: 'category', data: {json.dumps(fgdates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', interval: 14}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+  yAxis: {{ min: 0, max: 100, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+  series: [{{ type: 'line', data: {json.dumps(fgvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.5, color: '{T["rsi"]}'}}, areaStyle: {{color: 'rgba(111,155,255,0.10)'}},
+    markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 25, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.6}}, label: {{formatter: '25', color: '{T["down"]}', fontSize: 9, position: 'end'}}}}, {{yAxis: 75, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.6}}, label: {{formatter: '75', color: '{T["up"]}', fontSize: 9, position: 'end'}}}}] }} }}]
+}});
+window.addEventListener('resize', function(){{ fghc.resize(); }});
+""")
+
+    # --- 10Y 美債殖利率獨立線圖 ---
+    tnx_series = md.get("tnx_series", [])
+    if tnx_series:
+        tdates = [d["date"][-5:] for d in tnx_series]
+        tvals = [round(d["close"], 3) for d in tnx_series]
+        scripts.append(f"""
+var tnxc = echarts.init(document.getElementById('tnx_chart'));
+tnxc.setOption({{
+  title: [{{ text: '10Y 美債殖利率', left: '6%', top: '4%', textStyle: {{fontSize: 10, color: '{T["title"]}'}} }}],
+  tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}}, valueFormatter: function(v){{return v==null?'-':v.toFixed(3)+'%';}} }},
+  grid: {{ left: '8%', right: '8%', top: '28%', bottom: '20%' }},
+  xAxis: {{ type: 'category', data: {json.dumps(tdates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+  yAxis: {{ scale: true, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+  dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
+  series: [{{ name: '10Y 殖利率', type: 'line', data: {json.dumps(tvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.6, color: '{T["ma20"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.08)'}} }}]
+}});
+window.addEventListener('resize', function(){{ tnxc.resize(); }});
+""")
+
+    # 美債殖利率 2/10/30 年走勢 (各自獨立左軸, offset 排列)
     yc = md.get("yield_curve", {})
     if yc.get("dates"):
         yseries = yc.get("series", {})
         line_colors = {"2年": T["rsi"], "10年": T["ma20"], "30年": T["ma200"]}
+        labels = list(yseries.keys())
+        # 各天期獨立 yAxis, 左側依序 offset
+        yaxis_arr = []
+        for i, label in enumerate(labels):
+            color = line_colors.get(label, T["rsi"])
+            show_split = "true" if i == 0 else "false"
+            yaxis_arr.append(
+                f"""{{ name: '{label}', type: 'value', scale: true, position: 'left', offset: {i * 48}, splitNumber: 4, """
+                f"""axisLine: {{show: true, lineStyle: {{color: '{color}', width: 1.2}}}}, """
+                f"""axisTick: {{lineStyle: {{color: '{color}'}}}}, """
+                f"""axisLabel: {{fontSize: 9, color: '{color}', formatter: '{{value}}%'}}, """
+                f"""splitLine: {{show: {show_split}, lineStyle: {{color: '{T["split_line"]}'}}}}, """
+                f"""nameTextStyle: {{color: '{color}', fontSize: 10, fontWeight: 600}}, nameGap: 8 }}"""
+            )
+        yaxis_js = ",\n    ".join(yaxis_arr)
         yseries_js = ",\n    ".join([
-            f"""{{ name: '{label}', type: 'line', data: {json.dumps(vals)}, smooth: true, showSymbol: false, connectNulls: true, lineStyle: {{width: 1.6, color: '{line_colors.get(label, T["rsi"])}'}} }}"""
-            for label, vals in yseries.items()
+            f"""{{ name: '{label}', type: 'line', yAxisIndex: {i}, data: {json.dumps(vals)}, smooth: true, showSymbol: false, connectNulls: true, lineStyle: {{width: 1.6, color: '{line_colors.get(label, T["rsi"])}'}} }}"""
+            for i, (label, vals) in enumerate(yseries.items())
         ])
+        # left padding 視軸數量增加
+        left_pad = max(14, 8 + (len(labels) - 1) * 7)
         scripts.append(f"""
 var yldc = echarts.init(document.getElementById('yield_chart'));
 yldc.setOption({{
-  legend: {{ data: {json.dumps(list(yseries.keys()))}, top: '2%', right: '5%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+  legend: {{ data: {json.dumps(labels)}, top: '2%', right: '5%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
   tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}}, valueFormatter: function(v){{return v==null?'-':v.toFixed(3)+'%';}} }},
-  grid: {{ left: '8%', right: '6%', top: '14%', bottom: '10%' }},
+  grid: {{ left: '{left_pad}%', right: '5%', top: '14%', bottom: '10%' }},
   xAxis: {{ type: 'category', data: {json.dumps(yc["dates"])}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
-  yAxis: {{ scale: true, splitNumber: 5, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}} }},
+  yAxis: [
+    {yaxis_js}
+  ],
+  dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
   series: [
     {yseries_js}
   ]
@@ -1104,9 +1235,10 @@ window.addEventListener('resize', function(){{ yldc.resize(); }});
         scripts.append(f"""
 var dxyc = echarts.init(document.getElementById('dxy_chart'));
 dxyc.setOption({{
-  legend: {{ data: ['DXY','MA20'], top: '2%', right: '5%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+  title: [{{ text: '美元指數 DXY', left: '6%', top: '4%', textStyle: {{fontSize: 10, color: '{T["title"]}'}} }}],
+  legend: {{ data: ['DXY','MA20'], top: '4%', right: '6%', textStyle: {{fontSize: 9, color: '{T["legend"]}'}}, itemWidth: 10, itemHeight: 7 }},
   tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}} }},
-  grid: {{ left: '8%', right: '6%', top: '12%', bottom: '10%' }},
+  grid: {{ left: '8%', right: '8%', top: '28%', bottom: '20%' }},
   xAxis: {{ type: 'category', data: {json.dumps(ddates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
   yAxis: {{ scale: true, splitNumber: 4, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(1);}}}} }},
   series: [
@@ -1115,44 +1247,6 @@ dxyc.setOption({{
   ]
 }});
 window.addEventListener('resize', function(){{ dxyc.resize(); }});
-""")
-
-    # Fear & Greed 儀表
-    fg = md.get("fear_greed", {})
-    fg_score = fg.get("score", 0)
-    scripts.append(f"""
-var fgg = echarts.init(document.getElementById('fg_gauge'));
-fgg.setOption({{
-  series: [{{
-    type: 'gauge', min: 0, max: 100, startAngle: 200, endAngle: -20, radius: '95%', center: ['50%','62%'],
-    progress: {{show: false}},
-    axisLine: {{ lineStyle: {{ width: 16, color: [[0.25,'{T["down"]}'],[0.45,'#e07a3c'],[0.55,'{T["neutral"]}'],[0.75,'#8ec63f'],[1,'{T["up"]}']] }} }},
-    axisTick: {{show: false}}, splitLine: {{distance: -16, length: 16, lineStyle: {{color: '#0a0e15', width: 2}}}},
-    axisLabel: {{distance: -8, fontSize: 9, color: '{T["axis_label"]}'}},
-    pointer: {{itemStyle: {{color: '{T["tooltip_text"]}'}}, width: 4, length: '60%'}},
-    detail: {{valueAnimation: true, fontSize: 30, fontFamily: 'IBM Plex Mono', color: '{T["tooltip_text"]}', offsetCenter: [0,'40%'], formatter: '{{value}}'}},
-    data: [{{value: {fg_score}}}]
-  }}]
-}});
-window.addEventListener('resize', function(){{ fgg.resize(); }});
-""")
-
-    # Fear & Greed 歷史走勢
-    fg_hist = fg.get("history", [])
-    if fg_hist:
-        fgdates = [d["date"][-5:] for d in fg_hist]
-        fgvals = [d["score"] for d in fg_hist]
-        scripts.append(f"""
-var fghc = echarts.init(document.getElementById('fg_chart'));
-fghc.setOption({{
-  tooltip: {{ trigger: 'axis', backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}} }},
-  grid: {{ left: '10%', right: '4%', top: '8%', bottom: '16%' }},
-  xAxis: {{ type: 'category', data: {json.dumps(fgdates)}, boundaryGap: false, axisLabel: {{fontSize: 8, color: '{T["axis_label"]}', interval: 14}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
-  yAxis: {{ min: 0, max: 100, splitNumber: 2, axisLabel: {{fontSize: 8, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
-  series: [{{ type: 'line', data: {json.dumps(fgvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["rsi"]}'}}, areaStyle: {{color: 'rgba(111,155,255,0.10)'}},
-    markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 25, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.6}}}}, {{yAxis: 75, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.6}}}}], label: {{show: false}} }} }}]
-}});
-window.addEventListener('resize', function(){{ fghc.resize(); }});
 """)
 
     # 類股輪動
@@ -1247,6 +1341,24 @@ body{font-family:var(--sans);color:var(--ink);line-height:1.5;padding:20px;min-h
 .rc .rcv{font-size:11.5px;font-weight:600}
 .vix-now{font-size:13px;font-weight:600;color:var(--ink)}
 .vix-now .up{color:var(--up)} .vix-now .down{color:var(--down)}
+.ctrl{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:9px 14px;margin-bottom:10px;display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.ctrl-lbl{font-size:9.5px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+.sep{width:1px;height:18px;background:var(--line)}
+.seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px;gap:2px}
+.seg button{background:transparent;border:0;color:var(--ink-2);font-family:inherit;font-size:11px;font-weight:600;padding:5px 12px;border-radius:4px;cursor:pointer;transition:.15s}
+.seg button.on{background:var(--accent);color:#fff;box-shadow:0 0 8px rgba(77,127,255,.35)}
+.seg button:not(.on):hover{color:var(--ink);background:rgba(255,255,255,.03)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;flex:1;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);font-family:inherit;font-size:10.5px;font-weight:600;padding:5px 10px;border-radius:13px;cursor:pointer;transition:.15s;user-select:none}
+.chip:hover{border-color:#2b3645;color:var(--ink)}
+.chip.on{background:rgba(77,127,255,.14);border-color:#3a63d8;color:var(--accent-2)}
+.chip .dot{width:5px;height:5px;border-radius:50%;background:#3a4658}
+.chip.on .dot{background:var(--up);box-shadow:0 0 4px var(--up)}
+.cnt{font-size:10px;color:var(--ink-3);font-family:var(--mono)}
+.stack{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:11px}
+.pane{position:relative;background:transparent}
+.pane+.pane{border-top:1px solid var(--line-2)}
+.sub-panel{transition:opacity .2s ease}
 .rating-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
 .rating-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:13px;border-bottom:1px solid var(--line)}
 .rating-top h3{font-size:14px;font-weight:700}
@@ -1442,6 +1554,66 @@ var TRIGGER_URL = '{TRIGGER_URL}';
 {chart_scripts}
 
 function resizeAllCharts(){{ setTimeout(function(){{ window.dispatchEvent(new Event('resize')); }}, 50); }}
+
+function _resizeMarketCharts() {{
+  setTimeout(function() {{
+    var boxes = document.querySelectorAll('.chart-box');
+    for (var j = 0; j < boxes.length; j++) {{
+      var inst = typeof echarts !== 'undefined' && echarts.getInstanceByDom(boxes[j]);
+      if (inst) inst.resize();
+    }}
+  }}, 120);
+}}
+
+function _activeIdx() {{
+  var b = document.querySelector('#seg button.on');
+  return b ? b.getAttribute('data-idx') : 'ndx';
+}}
+
+function switchIndex(btn) {{
+  var idx = btn.getAttribute('data-idx');
+  var segs = document.querySelectorAll('#seg button');
+  for (var i = 0; i < segs.length; i++) segs[i].classList.remove('on');
+  btn.classList.add('on');
+  // 切換主圖
+  var cards = document.querySelectorAll('.index-card');
+  for (var i = 0; i < cards.length; i++) {{
+    cards[i].style.display = (cards[i].getAttribute('data-idx') === idx) ? 'block' : 'none';
+  }}
+  // 切換 per-index 副圖 (KD / MACD), 依對應 chip 啟用狀態
+  var subs = document.querySelectorAll('.index-sub');
+  for (var i = 0; i < subs.length; i++) {{
+    var p = subs[i];
+    var key = p.classList.contains('kd-panel') ? 'kd' : (p.classList.contains('macd-panel') ? 'macd' : null);
+    if (!key) continue;
+    var chip = document.querySelector('.chip[data-k="' + key + '"]');
+    var chipOn = chip && chip.classList.contains('on');
+    p.style.display = (chipOn && p.getAttribute('data-idx') === idx) ? 'block' : 'none';
+  }}
+  _resizeMarketCharts();
+}}
+
+function toggleChip(el) {{
+  el.classList.toggle('on');
+  var k = el.getAttribute('data-k');
+  var on = el.classList.contains('on');
+  var panels = document.querySelectorAll('.' + k + '-panel');
+  var idx = _activeIdx();
+  for (var i = 0; i < panels.length; i++) {{
+    var p = panels[i];
+    if (p.classList.contains('index-sub')) {{
+      // per-index 副圖: 須匹配當前指數
+      p.style.display = (on && p.getAttribute('data-idx') === idx) ? 'block' : 'none';
+    }} else {{
+      p.style.display = on ? 'block' : 'none';
+    }}
+  }}
+  // 更新計數
+  var cnt = document.querySelectorAll('#chips .chip.on').length;
+  var cntEl = document.getElementById('cnt');
+  if (cntEl) cntEl.textContent = cnt + ' 個';
+  _resizeMarketCharts();
+}}
 
 function switchTab(tabId, btn){{
     document.querySelectorAll('.tab-btn').forEach(function(b){{b.classList.remove('active');}});
