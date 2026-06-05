@@ -1024,8 +1024,23 @@ def generate_chart_scripts(stocks_data, options_data, md):
         macd = [round(v, 3) if pd.notna(v) else None for v in df["MACD"].tolist()]
         macd_sig = [round(v, 3) if pd.notna(v) else None for v in df["MACD_Signal"].tolist()]
         macd_hist = [round(v, 3) if pd.notna(v) else None for v in df["MACD_Hist"].tolist()]
-        macd_hist_color = [T["up"] if (v is not None and v >= 0) else T["down"] for v in macd_hist]
+        macd_hist_color = [T["up"] if (v is not None and v >= 0) else T["down"] for v in macd_hist]    
+        # Supertrend 拆多空兩條 (切換點補值避免斷裂)
+        st_vals = [round(v, 2) if pd.notna(v) else None for v in df["ST"].tolist()]
+        st_dir = [int(v) if pd.notna(v) else 0 for v in df["ST_DIR"].tolist()]
+        st_up, st_dn = [], []
+        for i in range(len(st_vals)):
+            cur, v = st_dir[i], st_vals[i]
+            prev = st_dir[i - 1] if i > 0 else cur
+            if cur == 1:
+                st_up.append(v); st_dn.append(v if prev == -1 else None)
+            elif cur == -1:
+                st_dn.append(v); st_up.append(v if prev == 1 else None)
+            else:
+                st_up.append(None); st_dn.append(None)
 
+
+        
         scripts.append(f"""
 var kc_{tk} = echarts.init(document.getElementById('kline_{tk}'));
 kc_{tk}.setOption({{
@@ -1034,7 +1049,7 @@ kc_{tk}.setOption({{
     {{ text: 'RSI(14)', left: '6%', top: '60%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
     {{ text: 'MACD(12,26,9)', left: '6%', top: '80%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
   ],
-  legend: {{ data: ['MA20','MA50','MA200'], top: '1%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+  legend: {{ data: ['MA20','MA50','MA200','Supertrend↑','Supertrend↓'], top: '1%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
   tooltip: {{ trigger: 'axis', axisPointer: {{ type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}} }},
     backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1,
     textStyle: {{color: '{T["tooltip_text"]}', fontSize: 12, fontFamily: 'IBM Plex Mono'}} }},
@@ -1064,6 +1079,8 @@ kc_{tk}.setOption({{
     {{ name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
     {{ name: 'MA50', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma50)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
     {{ name: 'MA200', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma200)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma200"]}'}} }},
+    {{ name: 'Supertrend↑', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_up)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["up"]}'}} }},
+    {{ name: 'Supertrend↓', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_dn)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["down"]}'}} }},
     {{ name: '成交量', type: 'bar', xAxisIndex: 0, yAxisIndex: 1, data: {json.dumps(vol)}, itemStyle: {{color: function(p){{return {json.dumps(vol_color)}[p.dataIndex];}}}} }},
     {{ name: 'RSI', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(rsi)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.2, color: '{T["rsi"]}'}},
        markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 70, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}}}, {{yAxis: 30, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }} }},
