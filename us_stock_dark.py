@@ -57,6 +57,58 @@ SECTOR_ETFS = {
 }
 
 # =========================================================
+# IBKR 持股 / 交易快照
+# 由 IBKR API (MCP) 取得後存於 ibkr_data.json，於建置時讀取。
+# (GitHub Actions 排程建置環境無法直連券商，故採快照檔)
+# =========================================================
+IBKR_DATA_FILE = "ibkr_data.json"
+
+def load_ibkr_data():
+    if not os.path.exists(IBKR_DATA_FILE):
+        return {}
+    try:
+        with open(IBKR_DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"  ⚠️ 讀取 IBKR 快照失敗: {e}")
+        return {}
+
+def _trade_et_date(trade_time):
+    """UTC ISO 字串 → ET 日期物件 (對齊 K 線的交易日)"""
+    try:
+        dt = datetime.fromisoformat(str(trade_time).replace("Z", "+00:00"))
+        return dt.astimezone(ET).date()
+    except Exception:
+        return None
+
+def build_trade_markers(ibkr):
+    """聚合每檔股票「每日 × 買賣方向」的成交 (以量加權均價 VWAP)。
+    回傳 {symbol: [ {et_date, side, price, size}, ... ]}"""
+    agg = {}  # (symbol, date, side) -> [sum(price*size), sum(size)]
+    for t in ibkr.get("trades", []):
+        sym = (t.get("symbol") or "").upper()
+        d = _trade_et_date(t.get("trade_time", ""))
+        side = t.get("side")
+        try:
+            sz = float(t.get("size") or 0)
+            pr = float(t.get("price") or 0)
+        except (TypeError, ValueError):
+            continue
+        if not sym or not d or side not in ("BUY", "SELL") or sz <= 0:
+            continue
+        a = agg.setdefault((sym, d, side), [0.0, 0.0])
+        a[0] += pr * sz
+        a[1] += sz
+    markers = {}
+    for (sym, d, side), (pv, sz) in agg.items():
+        if sz <= 0:
+            continue
+        markers.setdefault(sym, []).append({
+            "et_date": d, "side": side, "price": round(pv / sz, 2), "size": round(sz, 4),
+        })
+    return markers
+
+# =========================================================
 # 技術指標計算
 # =========================================================
 def calculate_sma(series, period):
@@ -1007,13 +1059,43 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
 window.addEventListener('resize', function(){{ {var}.resize(); }});
 """
 
-def generate_chart_scripts(stocks_data, options_data, md):
+def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
     T = THEME
+    trade_markers = trade_markers or {}
     scripts = []
 
     for tk, data in stocks_data.items():
         df = data["df"]
         dates = [d.strftime("%m-%d") for d in df.index]
+
+        # 進出標記 (買/賣) — 對齊到 K 線交易日
+        mk_data = []
+        if tk in trade_markers:
+            idx_dates = [d.date() if hasattr(d, "date") else d for d in df.index]
+            for m in sorted(trade_markers[tk], key=lambda x: x["et_date"]):
+                td = m["et_date"]
+                label = None
+                if td in idx_dates:
+                    label = dates[idx_dates.index(td)]
+                else:  # 非交易日 / 盤後夜盤 → 貼近最近一個已存在的交易日
+                    prior = [i for i, dd in enumerate(idx_dates) if dd <= td]
+                    if prior:
+                        label = dates[prior[-1]]
+                    elif idx_dates:
+                        label = dates[0]
+                if label is None:
+                    continue
+                is_buy = m["side"] == "BUY"
+                mk_data.append({
+                    "coord": [label, m["price"]],
+                    "lab": "買" if is_buy else "賣",
+                    "side": "買進" if is_buy else "賣出",
+                    "price": m["price"],
+                    "size": m["size"],
+                    "itemStyle": {"color": T["up"] if is_buy else T["down"],
+                                  "borderColor": "#fff", "borderWidth": 1},
+                })
+        mk_json = json.dumps(mk_data, ensure_ascii=False)
         ohlc = [[float(r["Open"]), float(r["Close"]), float(r["Low"]), float(r["High"])] for _, r in df.iterrows()]
         vol = [int(r["Volume"]) if pd.notna(r["Volume"]) else 0 for _, r in df.iterrows()]
         vol_color = [T["up"] if r["Close"] >= r["Open"] else T["down"] for _, r in df.iterrows()]
@@ -1075,7 +1157,11 @@ kc_{tk}.setOption({{
     {{ show: true, type: 'slider', xAxisIndex: [0,1,2], bottom: 8, height: 14, start: 40, end: 100, borderColor: '{T["dz_border"]}', fillerColor: '{T["dz_filler"]}', handleStyle: {{color: '{T["dz_handle"]}'}}, textStyle: {{color: '{T["dz_text"]}'}}, dataBackground: {{lineStyle: {{color: '{T["dz_bg_line"]}'}}, areaStyle: {{color: '{T["dz_bg_area"]}'}}}} }}
   ],
   series: [
-    {{ name: 'K線', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ohlc)}, itemStyle: {{color: '{T["up"]}', color0: '{T["down"]}', borderColor: '{T["up"]}', borderColor0: '{T["down"]}'}} }},
+    {{ name: 'K線', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ohlc)}, itemStyle: {{color: '{T["up"]}', color0: '{T["down"]}', borderColor: '{T["up"]}', borderColor0: '{T["down"]}'}},
+       markPoint: {{ symbol: 'pin', symbolSize: 34, animation: false,
+         label: {{ show: true, color: '#fff', fontSize: 10, fontWeight: 'bold', formatter: function(p){{return p.data.lab;}} }},
+         tooltip: {{ trigger: 'item', formatter: function(p){{return p.data.side + ' @ ' + p.data.price + ' × ' + p.data.size + ' 股';}} }},
+         data: {mk_json} }} }},
     {{ name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
     {{ name: 'MA50', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma50)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
     {{ name: 'MA200', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma200)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma200"]}'}} }},
@@ -1089,6 +1175,10 @@ kc_{tk}.setOption({{
     {{ name: 'Hist', type: 'bar', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_hist)}, itemStyle: {{color: function(p){{return {json.dumps(macd_hist_color)}[p.dataIndex];}}}} }}
   ]
 }});
+window._klineCharts = window._klineCharts || {{}};
+window._klineCharts['{tk}'] = kc_{tk};
+window._tradeMarks = window._tradeMarks || {{}};
+window._tradeMarks['{tk}'] = {mk_json};
 window.addEventListener('resize', function(){{ kc_{tk}.resize(); }});
 """)
 
@@ -1602,6 +1692,15 @@ body{font-family:var(--sans);color:var(--ink);line-height:1.5;padding:20px;min-h
 .dtable td{padding:7px 10px;border-bottom:1px solid var(--line-2);text-align:right;font-family:var(--mono);font-weight:500}
 .dtable td:first-child{text-align:left;font-family:var(--sans);font-weight:600;color:var(--ink)}
 .dtable tr:last-child td{border-bottom:none}
+.holdings-table td:nth-child(2),.holdings-table th:nth-child(2){text-align:right}
+.holdings-table .total-row td{border-top:2px solid var(--line);border-bottom:none;font-weight:700;background:var(--surface-2)}
+.holdings-table .total-row td:first-child{color:var(--ink)}
+.trade-toggle{display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:11px 16px;margin-bottom:14px}
+.tm-switch{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;user-select:none}
+.tm-switch input{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+.tm-legend{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2)}
+.tm-pin{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;color:#fff;font-size:10px;font-weight:700;margin-right:3px}
+.tm-pin.buy{background:var(--up)} .tm-pin.sell{background:var(--down)}
 .ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .ai-box{border:1px solid var(--line);border-radius:11px;padding:16px;position:relative;overflow:hidden;background:linear-gradient(180deg,var(--surface),var(--surface-2))}
 .ai-box::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(var(--accent),#5fd3ff)}
@@ -1700,10 +1799,90 @@ body{font-family:var(--sans);color:var(--ink);line-height:1.5;padding:20px;min-h
 }
 """
 
+def generate_holdings_section(ibkr):
+    """IBKR 持股明細頁：帳戶總覽 + 持股表"""
+    positions = sorted(ibkr.get("positions", []),
+                       key=lambda p: p.get("market_value", 0), reverse=True)
+    summ = ibkr.get("summary", {})
+    fetched = ibkr.get("fetched_at", "")
+
+    total_mv = sum(p.get("market_value", 0) for p in positions)
+    total_upnl = sum(p.get("unrealized_pnl", 0) for p in positions)
+    total_cost = total_mv - total_upnl
+    total_ret = (total_upnl / total_cost * 100) if total_cost else 0
+
+    def money(v):
+        try:
+            return f"${v:,.2f}"
+        except (TypeError, ValueError):
+            return "-"
+
+    def metric_card(label, value, cls=""):
+        return (f'<div class="metric {cls}"><div class="label">{label}</div>'
+                f'<div class="value num {cls}">{value}</div></div>')
+
+    upnl_cls = "up" if total_upnl >= 0 else "down"
+    cards = (
+        metric_card("淨清算價值 Net Liq", money(summ.get("net_liquidation")), "accent")
+        + metric_card("持倉市值 Positions", money(summ.get("gross_position_value") or total_mv))
+        + metric_card("總未實現損益", f'{total_upnl:+,.2f} ({total_ret:+.2f}%)', upnl_cls)
+        + metric_card("現金 / 股利", f'{money(summ.get("total_cash_value"))} · 股利 {money(summ.get("dividends"))}')
+    )
+
+    rows = ""
+    for p in positions:
+        sym = p.get("symbol", "")
+        qty = p.get("position", 0)
+        avg = p.get("average_price", 0)
+        mp = p.get("market_price", 0)
+        mv = p.get("market_value", 0)
+        upnl = p.get("unrealized_pnl", 0)
+        cost = mv - upnl
+        ret = (upnl / cost * 100) if cost else 0
+        cls = "up" if upnl >= 0 else "down"
+        rows += (
+            f'<tr><td>{sym}</td>'
+            f'<td>{qty:g}</td>'
+            f'<td>${avg:,.2f}</td>'
+            f'<td>${mp:,.2f}</td>'
+            f'<td>${mv:,.2f}</td>'
+            f'<td class="{cls}">{upnl:+,.2f}</td>'
+            f'<td class="{cls}">{ret:+.2f}%</td></tr>'
+        )
+    total_cls = "up" if total_upnl >= 0 else "down"
+    rows += (
+        f'<tr class="total-row"><td>合計 ({len(positions)} 檔)</td><td></td><td></td><td></td>'
+        f'<td>${total_mv:,.2f}</td>'
+        f'<td class="{total_cls}">{total_upnl:+,.2f}</td>'
+        f'<td class="{total_cls}">{total_ret:+.2f}%</td></tr>'
+    )
+
+    return f"""<div class="section-head"><span class="eyebrow">IBKR Portfolio</span><h2>持股明細</h2></div>
+    <div class="metrics metrics-4">{cards}</div>
+    <div class="card">
+      <div class="card-title"><span>持股部位</span>
+        <span style="font-size:11px;color:var(--ink-3);font-weight:500">資料快照 {fetched}</span></div>
+      <div style="overflow-x:auto">
+      <table class="dtable holdings-table">
+        <tr><th>代號</th><th>股數</th><th>均價</th><th>現價</th><th>市值</th><th>未實現損益</th><th>報酬率</th></tr>
+        {rows}
+      </table>
+      </div>
+      <div style="font-size:11px;color:var(--ink-3);margin-top:12px;line-height:1.6">
+        綠漲紅跌 (US convention)。資料為 IBKR 帳戶快照，於建置時讀取 <code>ibkr_data.json</code>。
+        個股 K 線圖上可勾選「顯示進出標記」檢視實際買賣點。
+      </div>
+    </div>"""
+
 def generate_html(stocks_data, options_data, fund_data, md):
     update_time = now_et().strftime("%Y-%m-%d %H:%M")
     market_section = generate_market_section(md)
     rating_table = generate_rating_table(stocks_data)
+
+    ibkr = load_ibkr_data()
+    trade_markers = build_trade_markers(ibkr)
+    has_ibkr = bool(ibkr.get("positions"))
+    holdings_section = generate_holdings_section(ibkr) if has_ibkr else ""
 
     sidebar_items, stock_cards = "", ""
     first = True
@@ -1721,7 +1900,17 @@ def generate_html(stocks_data, options_data, fund_data, md):
         </div>'''
         first = False
 
-    chart_scripts = generate_chart_scripts(stocks_data, options_data, md)
+    chart_scripts = generate_chart_scripts(stocks_data, options_data, md, trade_markers)
+
+    holdings_tab_btn = ('<button class="tab-btn" onclick="switchTab(\'tab-holdings\', this)">持股明細</button>'
+                        if has_ibkr else "")
+    holdings_tab_content = (f'<div id="tab-holdings" class="tab-content">{holdings_section}</div>'
+                            if has_ibkr else "")
+    trade_toggle = ('''
+        <div class="trade-toggle">
+          <label class="tm-switch"><input type="checkbox" id="tmChk" checked onchange="toggleTradeMarkers(this)"> 顯示進出標記</label>
+          <span class="tm-legend"><span class="tm-pin buy">買</span>買進　<span class="tm-pin sell">賣</span>賣出</span>
+        </div>''' if has_ibkr else "")
 
     return f"""<!DOCTYPE html>
 <html lang="zh-TW">
@@ -1746,6 +1935,7 @@ def generate_html(stocks_data, options_data, fund_data, md):
       <button class="tab-btn active" onclick="switchTab('tab-market', this)">大盤總覽</button>
       <button class="tab-btn" onclick="switchTab('tab-rating', this)">綜合評等</button>
       <button class="tab-btn" onclick="switchTab('tab-stocks', this)">追蹤個股分析</button>
+      {holdings_tab_btn}
   </div>
   <div id="tab-market" class="tab-content active">{market_section}</div>
   <div id="tab-rating" class="tab-content">{rating_table}</div>
@@ -1757,9 +1947,10 @@ def generate_html(stocks_data, options_data, fund_data, md):
             </div>
             {sidebar_items}
         </div>
-        <div class="main-content">{stock_cards}</div>
+        <div class="main-content">{trade_toggle}{stock_cards}</div>
       </div>
   </div>
+  {holdings_tab_content}
 </div>
 <button id="backToTop" onclick="window.scrollTo({{top:0,behavior:'smooth'}});" style="display:none;position:fixed;bottom:30px;right:30px;background:linear-gradient(135deg,#3a63d8,#4d7fff);color:#fff;border:none;border-radius:50px;padding:10px 18px;cursor:pointer;box-shadow:0 0 18px rgba(77,127,255,.5);z-index:9999;font-weight:bold;font-size:13px">↑ 返回頂部</button>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -1901,6 +2092,17 @@ function triggerAction(btn){{
     .then(function(){{ showCountdownToast("✅ 重新執行指令已發送！系統正在抓取最新資料", 150); }})
     .catch(function(err){{ alert("❌ 發生錯誤，請檢查網路。"); }})
     .finally(function(){{ btn.innerText = "⟳ 重新抓取最新資料"; btn.style.pointerEvents = "auto"; btn.style.opacity = "1"; }});
+}}
+
+function toggleTradeMarkers(cb){{
+    var show = cb.checked;
+    if (!window._klineCharts) return;
+    Object.keys(window._klineCharts).forEach(function(tk){{
+        var ch = window._klineCharts[tk];
+        if (!ch) return;
+        var data = show ? ((window._tradeMarks && window._tradeMarks[tk]) || []) : [];
+        ch.setOption({{ series: [{{ name: 'K線', markPoint: {{ data: data }} }}] }});
+    }});
 }}
 
 window.onscroll = function(){{ document.getElementById('backToTop').style.display = (document.body.scrollTop>400||document.documentElement.scrollTop>400)?'block':'none'; }};
