@@ -391,7 +391,7 @@ def get_quote(symbol: str):
 def get_fear_greed():
     # CNN 已將 endpoint 從 production.fear-and-greed-cnn.com 遷移至 production.dataviz.cnn.io
     # 且對預設 UA 會回 403/418，需帶完整瀏覽器 headers (Origin/Referer)
-    start = (now_et().date() - timedelta(days=180)).strftime("%Y-%m-%d")
+    start = (now_et().date() - timedelta(days=400)).strftime("%Y-%m-%d")
     endpoints = [
         f"https://production.dataviz.cnn.io/index/fearandgreed/graphdata/{start}",  # 新版
         "https://production.fear-and-greed-cnn.com/graphdata",                       # 舊版備援
@@ -413,7 +413,7 @@ def get_fear_greed():
             score = round(float(fg.get("score", 0)), 1)
             rating = fg.get("rating", "")
             hist = []
-            for d in (j.get("fear_and_greed_historical", {}).get("data", []))[-90:]:
+            for d in (j.get("fear_and_greed_historical", {}).get("data", []))[-400:]:
                 try:
                     ts = int(d.get("x", 0)) / 1000
                     hist.append({"date": datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d"),
@@ -569,6 +569,40 @@ def get_yield_curve_series(period: str = "6mo"):
     series = {label: [raw[label].get(dt) for dt in all_dates] for label in raw}
     return {"dates": [d[-5:] for d in all_dates], "series": series}
 
+def build_macro_axis(md):
+    """建立總經副圖 (VIX / CNN F&G / 10Y / DXY) 共用的日期軸。
+    以 VIX/10Y/DXY 的交易日聯集為主軸，再把各指標對齊到同一時間軸；
+    某日無值則填 None (圖上顯示空白)，使各圖時間完全對齊。"""
+    def _map(series, key):
+        return {d["date"]: d.get(key) for d in (series or []) if d.get("date")}
+    vix_c = _map(md.get("vix_series"), "close")
+    tnx_c = _map(md.get("tnx_series"), "close")
+    dxy_c = _map(md.get("dxy_series"), "close")
+    dxy_ma = _map(md.get("dxy_series"), "ma20")
+    fg_map = {d["date"]: d.get("score")
+              for d in md.get("fear_greed", {}).get("history", []) if d.get("date")}
+    trade_dates = sorted(set(vix_c) | set(tnx_c) | set(dxy_c))
+    if not trade_dates:
+        return {}
+
+    def col(mp, dec):
+        out = []
+        for d in trade_dates:
+            v = mp.get(d)
+            out.append(round(float(v), dec) if v is not None else None)
+        return out
+
+    return {
+        "dates": [d[-5:] for d in trade_dates],
+        "full_dates": trade_dates,
+        "vix": col(vix_c, 2),
+        "tnx": col(tnx_c, 3),
+        "dxy": col(dxy_c, 2),
+        "dxy_ma20": col(dxy_ma, 2),
+        # CNN F&G：對齊到交易日軸，缺值留空白 (None)
+        "fg": [fg_map.get(d) for d in trade_dates],
+    }
+
 def get_market_overview():
     md = {}
     print("  抓取指數漲幅 (道瓊/S&P/那斯達克/費半)...")
@@ -599,6 +633,8 @@ def get_market_overview():
     md["sectors"] = get_sector_performance()
     md["sectors_daily"] = get_sector_daily_history(30)
     md["yields"] = get_yields()
+    # 總經副圖共用日期軸 (VIX / F&G / 10Y / DXY 對齊時間)
+    md["macro_axis"] = build_macro_axis(md)
     return md
 
 # =========================================================
@@ -1273,10 +1309,15 @@ window.addEventListener('resize', function(){{ {var}.resize(); }});
 
     # --- VIX 獨立線圖 ---
     fg = md.get("fear_greed", {})
+    macro = md.get("macro_axis") or {}
+    macro_dates = macro.get("dates")
     vix_series = md.get("vix_series", [])
     if vix_series:
-        vdates = [d["date"][-5:] for d in vix_series]
-        vvals = [round(d["close"], 2) for d in vix_series]
+        if macro_dates:
+            vdates, vvals = macro_dates, macro["vix"]
+        else:
+            vdates = [d["date"][-5:] for d in vix_series]
+            vvals = [round(d["close"], 2) for d in vix_series]
         scripts.append(f"""
 var vixc = echarts.init(document.getElementById('vix_chart'));
 vixc.group = 'market';
@@ -1287,7 +1328,7 @@ vixc.setOption({{
   xAxis: {{ type: 'category', data: {json.dumps(vdates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
   yAxis: {{ scale: true, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
   dataZoom: [{{ type: 'inside', start: 40, end: 100 }}],
-  series: [{{ name: 'VIX', type: 'line', data: {json.dumps(vvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.6, color: '{T["vix"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.12)'}},
+  series: [{{ name: 'VIX', type: 'line', data: {json.dumps(vvals)}, smooth: true, showSymbol: false, connectNulls: true, lineStyle: {{width: 1.6, color: '{T["vix"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.12)'}},
     markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 20, lineStyle: {{color: '{T["neutral"]}', type: 'dashed', width: 0.8}}, label: {{formatter: '20', color: '{T["neutral"]}', fontSize: 9, position: 'end'}}}}, {{yAxis: 30, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}, label: {{formatter: '30 恐慌', color: '{T["down"]}', fontSize: 9, position: 'end'}}}}] }} }}]
 }});
 window.addEventListener('resize', function(){{ vixc.resize(); }});
@@ -1295,9 +1336,15 @@ window.addEventListener('resize', function(){{ vixc.resize(); }});
 
     # --- CNN F&G 歷史線 (gauge 另外處理) ---
     fg_hist = fg.get("history", [])
-    if fg_hist:
+    # 對齊到總經共用日期軸；某交易日無 F&G 值則留空白 (None)
+    if macro_dates and any(v is not None for v in macro.get("fg", [])):
+        fgdates, fgvals = macro_dates, macro["fg"]
+    elif fg_hist:
         fgdates = [d["date"][-5:] for d in fg_hist]
         fgvals = [d["score"] for d in fg_hist]
+    else:
+        fgdates, fgvals = None, None
+    if fgdates:
         scripts.append(f"""
 var fghc = echarts.init(document.getElementById('fg_chart'));
 fghc.group = 'market';
@@ -1308,7 +1355,7 @@ fghc.setOption({{
   xAxis: {{ type: 'category', data: {json.dumps(fgdates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', interval: 14}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
   yAxis: {{ min: 0, max: 100, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
   dataZoom: [{{ type: 'inside', start: 40, end: 100 }}],
-  series: [{{ type: 'line', data: {json.dumps(fgvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.5, color: '{T["rsi"]}'}}, areaStyle: {{color: 'rgba(111,155,255,0.10)'}},
+  series: [{{ type: 'line', data: {json.dumps(fgvals)}, smooth: true, showSymbol: false, connectNulls: false, lineStyle: {{width: 1.5, color: '{T["rsi"]}'}}, areaStyle: {{color: 'rgba(111,155,255,0.10)'}},
     markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 25, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.6}}, label: {{formatter: '25', color: '{T["down"]}', fontSize: 9, position: 'end'}}}}, {{yAxis: 75, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.6}}, label: {{formatter: '75', color: '{T["up"]}', fontSize: 9, position: 'end'}}}}] }} }}]
 }});
 window.addEventListener('resize', function(){{ fghc.resize(); }});
@@ -1317,8 +1364,11 @@ window.addEventListener('resize', function(){{ fghc.resize(); }});
     # --- 10Y 美債殖利率獨立線圖 ---
     tnx_series = md.get("tnx_series", [])
     if tnx_series:
-        tdates = [d["date"][-5:] for d in tnx_series]
-        tvals = [round(d["close"], 3) for d in tnx_series]
+        if macro_dates:
+            tdates, tvals = macro_dates, macro["tnx"]
+        else:
+            tdates = [d["date"][-5:] for d in tnx_series]
+            tvals = [round(d["close"], 3) for d in tnx_series]
         scripts.append(f"""
 var tnxc = echarts.init(document.getElementById('tnx_chart'));
 tnxc.group = 'market';
@@ -1329,7 +1379,7 @@ tnxc.setOption({{
   xAxis: {{ type: 'category', data: {json.dumps(tdates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
   yAxis: {{ scale: true, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
   dataZoom: [{{ type: 'inside', start: 40, end: 100 }}],
-  series: [{{ name: '10Y 殖利率', type: 'line', data: {json.dumps(tvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.6, color: '{T["ma20"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.08)'}} }}]
+  series: [{{ name: '10Y 殖利率', type: 'line', data: {json.dumps(tvals)}, smooth: true, showSymbol: false, connectNulls: true, lineStyle: {{width: 1.6, color: '{T["ma20"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.08)'}} }}]
 }});
 window.addEventListener('resize', function(){{ tnxc.resize(); }});
 """)
@@ -1372,9 +1422,12 @@ window.addEventListener('resize', function(){{ yldc.resize(); }});
     # 美元指數 DXY
     dxy_series = md.get("dxy_series", [])
     if dxy_series:
-        ddates = [d["date"][-5:] for d in dxy_series]
-        dvals = [round(d["close"], 3) for d in dxy_series]
-        dma20 = [d.get("ma20") for d in dxy_series]
+        if macro_dates:
+            ddates, dvals, dma20 = macro_dates, macro["dxy"], macro["dxy_ma20"]
+        else:
+            ddates = [d["date"][-5:] for d in dxy_series]
+            dvals = [round(d["close"], 3) for d in dxy_series]
+            dma20 = [d.get("ma20") for d in dxy_series]
         scripts.append(f"""
 var dxyc = echarts.init(document.getElementById('dxy_chart'));
 dxyc.group = 'market';
@@ -1387,8 +1440,8 @@ dxyc.setOption({{
   yAxis: {{ scale: true, splitNumber: 4, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(1);}}}} }},
   dataZoom: [{{ type: 'inside', start: 40, end: 100 }}],
   series: [
-    {{ name: 'DXY', type: 'line', data: {json.dumps(dvals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.6, color: '{T["accent"] if "accent" in T else T["rsi"]}'}}, areaStyle: {{color: 'rgba(77,127,255,0.10)'}} }},
-    {{ name: 'MA20', type: 'line', data: {json.dumps(dma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }}
+    {{ name: 'DXY', type: 'line', data: {json.dumps(dvals)}, smooth: true, showSymbol: false, connectNulls: true, lineStyle: {{width: 1.6, color: '{T["accent"] if "accent" in T else T["rsi"]}'}}, areaStyle: {{color: 'rgba(77,127,255,0.10)'}} }},
+    {{ name: 'MA20', type: 'line', data: {json.dumps(dma20)}, smooth: true, showSymbol: false, connectNulls: true, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }}
   ]
 }});
 window.addEventListener('resize', function(){{ dxyc.resize(); }});
