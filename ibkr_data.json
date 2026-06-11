@@ -1,109 +1,836 @@
 {
-  "fetched_at": "2026-06-08 06:55 ET",
+  "fetched_at": "2026-06-11 07:50 ET",
   "summary": {
     "currency": "USD",
-    "net_liquidation": 95076.32,
-    "gross_position_value": 95068.16,
-    "total_cash_value": 7.49,
-    "available_funds": 7.49,
-    "buying_power": 7.49,
-    "dividends": 0.67,
-    "leverage": "1.00"
+    "net_liquidation": 97513.22,
+    "gross_position_value": 88644.01,
+    "total_cash_value": 8861.01,
+    "available_funds": 794.75,
+    "buying_power": 794.75,
+    "dividends": 4.51,
+    "leverage": "0.91"
   },
   "positions": [
-    {"symbol": "AAOI", "position": 5.103, "average_price": 202.37, "market_price": 173.60, "market_value": 885.88, "unrealized_pnl": -146.81, "currency": "USD"},
-    {"symbol": "AMD", "position": 12.393, "average_price": 521.54, "market_price": 458.64, "market_value": 5683.93, "unrealized_pnl": -779.52, "currency": "USD"},
-    {"symbol": "AVGO", "position": 5.103, "average_price": 481.57, "market_price": 385.01, "market_value": 1964.71, "unrealized_pnl": -492.75, "currency": "USD"},
-    {"symbol": "CRWD", "position": 3.645, "average_price": 768.95, "market_price": 664.00, "market_value": 2420.28, "unrealized_pnl": -382.54, "currency": "USD"},
-    {"symbol": "DXYZ", "position": 8.1, "average_price": 47.23, "market_price": 41.59, "market_value": 336.88, "unrealized_pnl": -45.68, "currency": "USD"},
-    {"symbol": "ETN", "position": 10, "average_price": 417.62, "market_price": 393.98, "market_value": 3939.80, "unrealized_pnl": -236.40, "currency": "USD"},
-    {"symbol": "GEV", "position": 2.187, "average_price": 969.67, "market_price": 924.56, "market_value": 2022.01, "unrealized_pnl": -98.66, "currency": "USD"},
-    {"symbol": "GLW", "position": 5, "average_price": 200.40, "market_price": 175.23, "market_value": 876.15, "unrealized_pnl": -125.85, "currency": "USD"},
-    {"symbol": "GOOGL", "position": 4.374, "average_price": 361.85, "market_price": 368.31, "market_value": 1610.99, "unrealized_pnl": 28.26, "currency": "USD"},
-    {"symbol": "IAU", "position": 1, "average_price": 84.42, "market_price": 81.43, "market_value": 81.43, "unrealized_pnl": -2.99, "currency": "USD"},
-    {"symbol": "INTC", "position": 15, "average_price": 107.93, "market_price": 96.91, "market_value": 1453.65, "unrealized_pnl": -165.30, "currency": "USD"},
-    {"symbol": "LITE", "position": 1.458, "average_price": 1029.15, "market_price": 847.01, "market_value": 1234.94, "unrealized_pnl": -265.56, "currency": "USD"},
-    {"symbol": "MRVL", "position": 8, "average_price": 290.79, "market_price": 272.89, "market_value": 2183.12, "unrealized_pnl": -143.20, "currency": "USD"},
-    {"symbol": "MU", "position": 10.916, "average_price": 964.45, "market_price": 857.01, "market_value": 9355.12, "unrealized_pnl": -1172.79, "currency": "USD"},
-    {"symbol": "NET", "position": 8.91, "average_price": 272.66, "market_price": 247.49, "market_value": 2205.14, "unrealized_pnl": -224.26, "currency": "USD"},
-    {"symbol": "NOK", "position": 170, "average_price": 16.85, "market_price": 14.09, "market_value": 2395.30, "unrealized_pnl": -469.20, "currency": "USD"},
-    {"symbol": "REMX", "position": 3.24, "average_price": 102.18, "market_price": 89.85, "market_value": 291.11, "unrealized_pnl": -39.95, "currency": "USD"},
-    {"symbol": "SOXX", "position": 84.645, "average_price": 559.45, "market_price": 535.53, "market_value": 45329.94, "unrealized_pnl": -2024.97, "currency": "USD"},
-    {"symbol": "TSM", "position": 4.86, "average_price": 446.69, "market_price": 411.50, "market_value": 1999.89, "unrealized_pnl": -171.02, "currency": "USD"},
-    {"symbol": "VRT", "position": 7.29, "average_price": 334.49, "market_price": 297.30, "market_value": 2167.32, "unrealized_pnl": -271.12, "currency": "USD"},
-    {"symbol": "VSH", "position": 118.7, "average_price": 62.49, "market_price": 55.86, "market_value": 6630.58, "unrealized_pnl": -786.98, "currency": "USD"}
+    {
+      "symbol": "SOXX",
+      "position": 60.0,
+      "average_price": 557.66286,
+      "market_price": 558.190002,
+      "market_value": 33491.400147,
+      "unrealized_pnl": 31.628575,
+      "daily_pnl": 1164.583247,
+      "currency": "USD"
+    },
+    {
+      "symbol": "MU",
+      "position": 14.916,
+      "average_price": 919.679954,
+      "market_price": 917.450012,
+      "market_value": 13684.684382,
+      "unrealized_pnl": -33.261818,
+      "daily_pnl": 381.402302,
+      "currency": "USD"
+    },
+    {
+      "symbol": "AMD",
+      "position": 15.0,
+      "average_price": 452.373133,
+      "market_price": 464.317108,
+      "market_value": 6964.756622,
+      "unrealized_pnl": 179.159622,
+      "daily_pnl": 178.756622,
+      "currency": "USD"
+    },
+    {
+      "symbol": "VSH",
+      "position": 118.7,
+      "average_price": 51.8177,
+      "market_price": 56.09,
+      "market_value": 6657.883018,
+      "unrealized_pnl": 507.122018,
+      "daily_pnl": 170.928018,
+      "currency": "USD"
+    },
+    {
+      "symbol": "ETN",
+      "position": 10.0,
+      "average_price": 401.067,
+      "market_price": 386.98999,
+      "market_value": 3869.899902,
+      "unrealized_pnl": -140.770097,
+      "daily_pnl": 115.299903,
+      "currency": "USD"
+    },
+    {
+      "symbol": "NOK",
+      "position": 270.0,
+      "average_price": 14.827476,
+      "market_price": 13.56,
+      "market_value": 3661.200108,
+      "unrealized_pnl": -342.218492,
+      "daily_pnl": 43.200108,
+      "currency": "USD"
+    },
+    {
+      "symbol": "MRVL",
+      "position": 13.0,
+      "average_price": 238.286923,
+      "market_price": 264.380005,
+      "market_value": 3436.940064,
+      "unrealized_pnl": 339.210064,
+      "daily_pnl": 153.270064,
+      "currency": "USD"
+    },
+    {
+      "symbol": "CRWD",
+      "position": 3.645,
+      "average_price": 614.424444,
+      "market_price": 648.0,
+      "market_value": 2361.96,
+      "unrealized_pnl": 122.3829,
+      "daily_pnl": 0.9477,
+      "currency": "USD"
+    },
+    {
+      "symbol": "TSM",
+      "position": 4.86,
+      "average_price": 421.893374,
+      "market_price": 416.5,
+      "market_value": 2024.19,
+      "unrealized_pnl": -26.2118,
+      "daily_pnl": 42.306828,
+      "currency": "USD"
+    },
+    {
+      "symbol": "NET",
+      "position": 8.91,
+      "average_price": 206.375331,
+      "market_price": 221.009995,
+      "market_value": 1969.199051,
+      "unrealized_pnl": 130.394851,
+      "daily_pnl": 11.939351,
+      "currency": "USD"
+    },
+    {
+      "symbol": "INTC",
+      "position": 15.0,
+      "average_price": 115.066,
+      "market_price": 112.650002,
+      "market_value": 1689.750023,
+      "unrealized_pnl": -36.239977,
+      "daily_pnl": 84.150023,
+      "currency": "USD"
+    },
+    {
+      "symbol": "GOOGL",
+      "position": 4.374,
+      "average_price": 351.208551,
+      "market_price": 357.690002,
+      "market_value": 1564.536071,
+      "unrealized_pnl": 28.349871,
+      "daily_pnl": 5.729951,
+      "currency": "USD"
+    },
+    {
+      "symbol": "VRT",
+      "position": 5.29,
+      "average_price": 336.416305,
+      "market_price": 290.0,
+      "market_value": 1534.1,
+      "unrealized_pnl": -245.542253,
+      "daily_pnl": 63.9035,
+      "currency": "USD"
+    },
+    {
+      "symbol": "LITE",
+      "position": 1.458,
+      "average_price": 941.806447,
+      "market_price": 875.35498,
+      "market_value": 1276.267562,
+      "unrealized_pnl": -96.886239,
+      "daily_pnl": 32.214481,
+      "currency": "USD"
+    },
+    {
+      "symbol": "AVGO",
+      "position": 3.103,
+      "average_price": 422.402931,
+      "market_price": 375.75,
+      "market_value": 1165.95225,
+      "unrealized_pnl": -144.764044,
+      "daily_pnl": 17.11005,
+      "currency": "USD"
+    },
+    {
+      "symbol": "GEV",
+      "position": 1.187,
+      "average_price": 1038.05138,
+      "market_price": 894.609985,
+      "market_value": 1061.902053,
+      "unrealized_pnl": -170.264936,
+      "daily_pnl": 56.057623,
+      "currency": "USD"
+    },
+    {
+      "symbol": "AAOI",
+      "position": 5.103,
+      "average_price": 186.743073,
+      "market_price": 176.5,
+      "market_value": 900.6795,
+      "unrealized_pnl": -52.2704,
+      "daily_pnl": 6.99111,
+      "currency": "USD"
+    },
+    {
+      "symbol": "GLW",
+      "position": 5.0,
+      "average_price": 177.85,
+      "market_price": 173.0,
+      "market_value": 865.0,
+      "unrealized_pnl": -24.25,
+      "daily_pnl": 24.15,
+      "currency": "USD"
+    },
+    {
+      "symbol": "DXYZ",
+      "position": 8.1,
+      "average_price": 67.790988,
+      "market_price": 38.34,
+      "market_value": 310.554001,
+      "unrealized_pnl": -238.552999,
+      "daily_pnl": 18.468001,
+      "currency": "USD"
+    },
+    {
+      "symbol": "IAU",
+      "position": 1.0,
+      "average_price": 91.76,
+      "market_price": 76.669998,
+      "market_value": 76.669998,
+      "unrealized_pnl": -15.090002,
+      "daily_pnl": -0.120002,
+      "currency": "USD"
+    },
+    {
+      "symbol": "REMX",
+      "position": 0.24,
+      "average_price": 95.299814,
+      "market_price": 89.150002,
+      "market_value": 21.396,
+      "unrealized_pnl": -1.475955,
+      "daily_pnl": 9.1688,
+      "currency": "USD"
+    }
   ],
   "trades": [
-    {"symbol": "MU", "side": "BUY", "size": 8, "price": 928, "trade_time": "2026-06-08T00:40:32Z"},
-    {"symbol": "SOXX", "side": "BUY", "size": 60, "price": 558, "trade_time": "2026-06-08T00:33:22Z"},
-    {"symbol": "SOXX", "side": "BUY", "size": 20, "price": 555.49, "trade_time": "2026-06-08T00:22:36Z"},
-    {"symbol": "SOXX", "side": "BUY", "size": 1, "price": 556.81, "trade_time": "2026-06-08T00:17:55Z"},
-    {"symbol": "GLW", "side": "SELL", "size": 1, "price": 190, "trade_time": "2026-06-05T14:51:57Z"},
-    {"symbol": "TSM", "side": "SELL", "size": 0.54, "price": 430.27, "trade_time": "2026-06-05T14:15:52Z"},
-    {"symbol": "MRVL", "side": "SELL", "size": 0.935, "price": 290.55, "trade_time": "2026-06-05T13:51:10Z"},
-    {"symbol": "MRVL", "side": "SELL", "size": 2, "price": 290.47, "trade_time": "2026-06-05T13:51:06Z"},
-    {"symbol": "NOK", "side": "SELL", "size": 100, "price": 15.13, "trade_time": "2026-06-05T13:50:00Z"},
-    {"symbol": "VSH", "side": "SELL", "size": 100, "price": 58.34, "trade_time": "2026-06-05T13:49:55Z"},
-    {"symbol": "GLW", "side": "SELL", "size": 7, "price": 181.33, "trade_time": "2026-06-05T13:47:31Z"},
-    {"symbol": "GEV", "side": "SELL", "size": 0.243, "price": 945.64, "trade_time": "2026-06-05T13:47:05Z"},
-    {"symbol": "LITE", "side": "SELL", "size": 0.162, "price": 901.67, "trade_time": "2026-06-05T13:46:26Z"},
-    {"symbol": "VRT", "side": "SELL", "size": 0.81, "price": 307.72, "trade_time": "2026-06-05T13:46:24Z"},
-    {"symbol": "MRVL", "side": "SELL", "size": 0.215, "price": 292.73, "trade_time": "2026-06-05T13:44:24Z"},
-    {"symbol": "SOXX", "side": "SELL", "size": 0.405, "price": 571.7, "trade_time": "2026-06-05T13:44:22Z"},
-    {"symbol": "MRVL", "side": "SELL", "size": 1, "price": 292.48, "trade_time": "2026-06-05T13:44:22Z"},
-    {"symbol": "CRWD", "side": "SELL", "size": 0.405, "price": 697.47, "trade_time": "2026-06-05T13:44:10Z"},
-    {"symbol": "VSH", "side": "SELL", "size": 0.3, "price": 58.86, "trade_time": "2026-06-05T13:43:39Z"},
-    {"symbol": "VSH", "side": "SELL", "size": 24, "price": 58.85, "trade_time": "2026-06-05T13:43:39Z"},
-    {"symbol": "AMD", "side": "SELL", "size": 0.377, "price": 495.72, "trade_time": "2026-06-05T13:43:38Z"},
-    {"symbol": "AMD", "side": "SELL", "size": 1, "price": 495.72, "trade_time": "2026-06-05T13:43:35Z"},
-    {"symbol": "MU", "side": "SELL", "size": 0.324, "price": 940.57, "trade_time": "2026-06-05T13:43:37Z"},
-    {"symbol": "AVGO", "side": "SELL", "size": 0.567, "price": 401.36, "trade_time": "2026-06-05T13:43:29Z"},
-    {"symbol": "AAOI", "side": "SELL", "size": 0.567, "price": 183.13, "trade_time": "2026-06-05T13:43:29Z"},
-    {"symbol": "GOOGL", "side": "SELL", "size": 0.486, "price": 370.2, "trade_time": "2026-06-05T13:43:24Z"},
-    {"symbol": "REMX", "side": "SELL", "size": 0.36, "price": 92.62, "trade_time": "2026-06-05T13:36:37Z"},
-    {"symbol": "VSH", "side": "SELL", "size": 24, "price": 59.76, "trade_time": "2026-06-05T13:35:59Z"},
-    {"symbol": "CRWD", "side": "SELL", "size": 0.45, "price": 692.75, "trade_time": "2026-06-05T13:35:53Z"},
-    {"symbol": "VSH", "side": "SELL", "size": 3, "price": 59.76, "trade_time": "2026-06-05T13:35:52Z"},
-    {"symbol": "MU", "side": "SELL", "size": 0.36, "price": 952.28, "trade_time": "2026-06-05T13:35:52Z"},
-    {"symbol": "MRVL", "side": "SELL", "size": 1, "price": 296.83, "trade_time": "2026-06-05T13:35:51Z"},
-    {"symbol": "DXYZ", "side": "SELL", "size": 0.9, "price": 45.17, "trade_time": "2026-06-05T13:35:51Z"},
-    {"symbol": "SOXX", "side": "SELL", "size": 0.45, "price": 575.48, "trade_time": "2026-06-05T13:35:51Z"},
-    {"symbol": "VRT", "side": "SELL", "size": 0.9, "price": 309.64, "trade_time": "2026-06-05T13:35:51Z"},
-    {"symbol": "GEV", "side": "SELL", "size": 0.27, "price": 945, "trade_time": "2026-06-05T13:35:51Z"},
-    {"symbol": "GOOGL", "side": "SELL", "size": 0.54, "price": 367.67, "trade_time": "2026-06-05T13:35:51Z"},
-    {"symbol": "MRVL", "side": "SELL", "size": 0.35, "price": 297, "trade_time": "2026-06-05T13:35:51Z"},
-    {"symbol": "AMD", "side": "SELL", "size": 1, "price": 499.43, "trade_time": "2026-06-05T13:35:51Z"},
-    {"symbol": "AVGO", "side": "SELL", "size": 0.63, "price": 403.12, "trade_time": "2026-06-05T13:35:51Z"},
-    {"symbol": "AAOI", "side": "SELL", "size": 0.63, "price": 190.98, "trade_time": "2026-06-05T13:35:51Z"},
-    {"symbol": "AMD", "side": "SELL", "size": 0.53, "price": 498.87, "trade_time": "2026-06-05T13:35:51Z"},
-    {"symbol": "LITE", "side": "SELL", "size": 0.18, "price": 919.85, "trade_time": "2026-06-05T13:35:51Z"},
-    {"symbol": "NET", "side": "SELL", "size": 0.99, "price": 264.01, "trade_time": "2026-06-05T13:35:51Z"},
-    {"symbol": "VSH", "side": "SELL", "size": 30, "price": 59.33, "trade_time": "2026-06-05T13:35:29Z"},
-    {"symbol": "GEV", "side": "SELL", "size": 0.3, "price": 950, "trade_time": "2026-06-05T13:33:31Z"},
-    {"symbol": "NET", "side": "SELL", "size": 1, "price": 267.52, "trade_time": "2026-06-05T13:31:17Z"},
-    {"symbol": "NET", "side": "SELL", "size": 0.1, "price": 267.64, "trade_time": "2026-06-05T13:31:17Z"},
-    {"symbol": "GOOGL", "side": "SELL", "size": 0.6, "price": 366.5, "trade_time": "2026-06-05T13:30:57Z"},
-    {"symbol": "NOK", "side": "SELL", "size": 30, "price": 15.63, "trade_time": "2026-06-05T13:30:14Z"},
-    {"symbol": "MU", "side": "SELL", "size": 0.4, "price": 943.23, "trade_time": "2026-06-05T13:30:09Z"},
-    {"symbol": "SOXX", "side": "SELL", "size": 0.5, "price": 577.59, "trade_time": "2026-06-05T13:30:08Z"},
-    {"symbol": "MRVL", "side": "SELL", "size": 0.5, "price": 298.05, "trade_time": "2026-06-05T13:30:07Z"},
-    {"symbol": "TSM", "side": "SELL", "size": 0.6, "price": 430.82, "trade_time": "2026-06-05T13:30:07Z"},
-    {"symbol": "AMD", "side": "SELL", "size": 0.7, "price": 500.85, "trade_time": "2026-06-05T13:30:05Z"},
-    {"symbol": "REMX", "side": "SELL", "size": 0.4, "price": 93.38, "trade_time": "2026-06-05T13:30:05Z"},
-    {"symbol": "MRVL", "side": "SELL", "size": 1, "price": 297.31, "trade_time": "2026-06-05T13:30:04Z"},
-    {"symbol": "CRWD", "side": "SELL", "size": 0.5, "price": 698.76, "trade_time": "2026-06-05T13:30:04Z"},
-    {"symbol": "AMD", "side": "SELL", "size": 1, "price": 500.44, "trade_time": "2026-06-05T13:30:04Z"},
-    {"symbol": "AVGO", "side": "SELL", "size": 0.7, "price": 409.77, "trade_time": "2026-06-05T13:30:04Z"},
-    {"symbol": "AAOI", "side": "SELL", "size": 0.7, "price": 190.98, "trade_time": "2026-06-05T13:30:03Z"},
-    {"symbol": "DXYZ", "side": "SELL", "size": 1, "price": 44.9, "trade_time": "2026-06-05T13:30:02Z"},
-    {"symbol": "VRT", "side": "SELL", "size": 1, "price": 313.36, "trade_time": "2026-06-05T13:30:02Z"},
-    {"symbol": "LITE", "side": "SELL", "size": 0.2, "price": 911.49, "trade_time": "2026-06-05T13:30:01Z"},
-    {"symbol": "VSH", "side": "SELL", "size": 100, "price": 60.87, "trade_time": "2026-06-05T13:19:26Z"},
-    {"symbol": "SOXX", "side": "SELL", "size": 10, "price": 578.6, "trade_time": "2026-06-05T13:18:12Z"},
-    {"symbol": "INTC", "side": "SELL", "size": 20, "price": 107.2, "trade_time": "2026-06-05T13:17:29Z"},
-    {"symbol": "AAOI", "side": "SELL", "size": 3, "price": 192.51, "trade_time": "2026-06-05T13:16:07Z"},
-    {"symbol": "NOK", "side": "SELL", "size": 130, "price": 15.74, "trade_time": "2026-06-05T13:12:30Z"},
-    {"symbol": "LITE", "side": "SELL", "size": 3, "price": 901, "trade_time": "2026-06-05T13:11:24Z"},
-    {"symbol": "MU", "side": "SELL", "size": 3, "price": 948.06, "trade_time": "2026-06-05T12:38:12Z"}
+    {
+      "symbol": "SOXX",
+      "side": "SELL",
+      "size": 10.0,
+      "price": 558.0,
+      "trade_time": "2026-06-11T11:48:41Z"
+    },
+    {
+      "symbol": "GEV",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 891.5,
+      "trade_time": "2026-06-11T11:47:04Z"
+    },
+    {
+      "symbol": "VRT",
+      "side": "SELL",
+      "size": 2.0,
+      "price": 289.58,
+      "trade_time": "2026-06-11T11:44:20Z"
+    },
+    {
+      "symbol": "AVGO",
+      "side": "SELL",
+      "size": 2.0,
+      "price": 375.5,
+      "trade_time": "2026-06-11T11:43:13Z"
+    },
+    {
+      "symbol": "REMX",
+      "side": "SELL",
+      "size": 3.0,
+      "price": 88.2,
+      "trade_time": "2026-06-11T11:42:27Z"
+    },
+    {
+      "symbol": "NOK",
+      "side": "BUY",
+      "size": 200.0,
+      "price": 14.95,
+      "trade_time": "2026-06-08T15:22:24Z"
+    },
+    {
+      "symbol": "AMD",
+      "side": "BUY",
+      "size": 0.607,
+      "price": 487.13,
+      "trade_time": "2026-06-08T14:31:46Z"
+    },
+    {
+      "symbol": "AMD",
+      "side": "BUY",
+      "size": 2.0,
+      "price": 486.94,
+      "trade_time": "2026-06-08T14:31:46Z"
+    },
+    {
+      "symbol": "NOK",
+      "side": "SELL",
+      "size": 100.0,
+      "price": 14.835,
+      "trade_time": "2026-06-08T14:29:38Z"
+    },
+    {
+      "symbol": "MRVL",
+      "side": "BUY",
+      "size": 5.0,
+      "price": 293.0,
+      "trade_time": "2026-06-08T14:28:22Z"
+    },
+    {
+      "symbol": "MU",
+      "side": "BUY",
+      "size": 4.0,
+      "price": 937.6,
+      "trade_time": "2026-06-08T14:27:09Z"
+    },
+    {
+      "symbol": "SOXX",
+      "side": "SELL",
+      "size": 14.0,
+      "price": 568.05,
+      "trade_time": "2026-06-08T14:26:16Z"
+    },
+    {
+      "symbol": "SOXX",
+      "side": "SELL",
+      "size": 0.645,
+      "price": 568.01,
+      "trade_time": "2026-06-08T14:26:16Z"
+    },
+    {
+      "symbol": "MU",
+      "side": "BUY",
+      "size": 8.0,
+      "price": 928.0,
+      "trade_time": "2026-06-08T00:40:32Z"
+    },
+    {
+      "symbol": "SOXX",
+      "side": "BUY",
+      "size": 60.0,
+      "price": 558.0,
+      "trade_time": "2026-06-08T00:33:22Z"
+    },
+    {
+      "symbol": "SOXX",
+      "side": "BUY",
+      "size": 20.0,
+      "price": 555.49,
+      "trade_time": "2026-06-08T00:22:36Z"
+    },
+    {
+      "symbol": "SOXX",
+      "side": "BUY",
+      "size": 1.0,
+      "price": 556.81,
+      "trade_time": "2026-06-08T00:17:55Z"
+    },
+    {
+      "symbol": "GLW",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 190.0,
+      "trade_time": "2026-06-05T14:51:57Z"
+    },
+    {
+      "symbol": "TSM",
+      "side": "SELL",
+      "size": 0.54,
+      "price": 430.27,
+      "trade_time": "2026-06-05T14:15:52Z"
+    },
+    {
+      "symbol": "MRVL",
+      "side": "SELL",
+      "size": 0.935,
+      "price": 290.55,
+      "trade_time": "2026-06-05T13:51:10Z"
+    },
+    {
+      "symbol": "MRVL",
+      "side": "SELL",
+      "size": 2.0,
+      "price": 290.47,
+      "trade_time": "2026-06-05T13:51:06Z"
+    },
+    {
+      "symbol": "NOK",
+      "side": "SELL",
+      "size": 100.0,
+      "price": 15.13,
+      "trade_time": "2026-06-05T13:50:00Z"
+    },
+    {
+      "symbol": "VSH",
+      "side": "SELL",
+      "size": 100.0,
+      "price": 58.34,
+      "trade_time": "2026-06-05T13:49:55Z"
+    },
+    {
+      "symbol": "GLW",
+      "side": "SELL",
+      "size": 7.0,
+      "price": 181.33,
+      "trade_time": "2026-06-05T13:47:31Z"
+    },
+    {
+      "symbol": "GEV",
+      "side": "SELL",
+      "size": 0.243,
+      "price": 945.64,
+      "trade_time": "2026-06-05T13:47:05Z"
+    },
+    {
+      "symbol": "LITE",
+      "side": "SELL",
+      "size": 0.162,
+      "price": 901.67,
+      "trade_time": "2026-06-05T13:46:26Z"
+    },
+    {
+      "symbol": "VRT",
+      "side": "SELL",
+      "size": 0.81,
+      "price": 307.72,
+      "trade_time": "2026-06-05T13:46:24Z"
+    },
+    {
+      "symbol": "MRVL",
+      "side": "SELL",
+      "size": 0.215,
+      "price": 292.73,
+      "trade_time": "2026-06-05T13:44:24Z"
+    },
+    {
+      "symbol": "SOXX",
+      "side": "SELL",
+      "size": 0.405,
+      "price": 571.7,
+      "trade_time": "2026-06-05T13:44:22Z"
+    },
+    {
+      "symbol": "MRVL",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 292.48,
+      "trade_time": "2026-06-05T13:44:22Z"
+    },
+    {
+      "symbol": "CRWD",
+      "side": "SELL",
+      "size": 0.405,
+      "price": 697.47,
+      "trade_time": "2026-06-05T13:44:10Z"
+    },
+    {
+      "symbol": "VSH",
+      "side": "SELL",
+      "size": 0.3,
+      "price": 58.86,
+      "trade_time": "2026-06-05T13:43:39Z"
+    },
+    {
+      "symbol": "VSH",
+      "side": "SELL",
+      "size": 24.0,
+      "price": 58.85,
+      "trade_time": "2026-06-05T13:43:39Z"
+    },
+    {
+      "symbol": "AMD",
+      "side": "SELL",
+      "size": 0.377,
+      "price": 495.72,
+      "trade_time": "2026-06-05T13:43:38Z"
+    },
+    {
+      "symbol": "MU",
+      "side": "SELL",
+      "size": 0.324,
+      "price": 940.57,
+      "trade_time": "2026-06-05T13:43:37Z"
+    },
+    {
+      "symbol": "AMD",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 495.72,
+      "trade_time": "2026-06-05T13:43:35Z"
+    },
+    {
+      "symbol": "AVGO",
+      "side": "SELL",
+      "size": 0.567,
+      "price": 401.36,
+      "trade_time": "2026-06-05T13:43:29Z"
+    },
+    {
+      "symbol": "AAOI",
+      "side": "SELL",
+      "size": 0.567,
+      "price": 183.13,
+      "trade_time": "2026-06-05T13:43:29Z"
+    },
+    {
+      "symbol": "GOOGL",
+      "side": "SELL",
+      "size": 0.486,
+      "price": 370.2,
+      "trade_time": "2026-06-05T13:43:24Z"
+    },
+    {
+      "symbol": "REMX",
+      "side": "SELL",
+      "size": 0.36,
+      "price": 92.62,
+      "trade_time": "2026-06-05T13:36:37Z"
+    },
+    {
+      "symbol": "VSH",
+      "side": "SELL",
+      "size": 24.0,
+      "price": 59.76,
+      "trade_time": "2026-06-05T13:35:59Z"
+    },
+    {
+      "symbol": "CRWD",
+      "side": "SELL",
+      "size": 0.45,
+      "price": 692.75,
+      "trade_time": "2026-06-05T13:35:53Z"
+    },
+    {
+      "symbol": "VSH",
+      "side": "SELL",
+      "size": 3.0,
+      "price": 59.76,
+      "trade_time": "2026-06-05T13:35:52Z"
+    },
+    {
+      "symbol": "MU",
+      "side": "SELL",
+      "size": 0.36,
+      "price": 952.28,
+      "trade_time": "2026-06-05T13:35:52Z"
+    },
+    {
+      "symbol": "MRVL",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 296.83,
+      "trade_time": "2026-06-05T13:35:51Z"
+    },
+    {
+      "symbol": "DXYZ",
+      "side": "SELL",
+      "size": 0.9,
+      "price": 45.17,
+      "trade_time": "2026-06-05T13:35:51Z"
+    },
+    {
+      "symbol": "SOXX",
+      "side": "SELL",
+      "size": 0.45,
+      "price": 575.48,
+      "trade_time": "2026-06-05T13:35:51Z"
+    },
+    {
+      "symbol": "VRT",
+      "side": "SELL",
+      "size": 0.9,
+      "price": 309.64,
+      "trade_time": "2026-06-05T13:35:51Z"
+    },
+    {
+      "symbol": "GEV",
+      "side": "SELL",
+      "size": 0.27,
+      "price": 945.0,
+      "trade_time": "2026-06-05T13:35:51Z"
+    },
+    {
+      "symbol": "GOOGL",
+      "side": "SELL",
+      "size": 0.54,
+      "price": 367.67,
+      "trade_time": "2026-06-05T13:35:51Z"
+    },
+    {
+      "symbol": "MRVL",
+      "side": "SELL",
+      "size": 0.35,
+      "price": 297.0,
+      "trade_time": "2026-06-05T13:35:51Z"
+    },
+    {
+      "symbol": "AMD",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 499.43,
+      "trade_time": "2026-06-05T13:35:51Z"
+    },
+    {
+      "symbol": "AVGO",
+      "side": "SELL",
+      "size": 0.63,
+      "price": 403.12,
+      "trade_time": "2026-06-05T13:35:51Z"
+    },
+    {
+      "symbol": "AAOI",
+      "side": "SELL",
+      "size": 0.63,
+      "price": 186.3,
+      "trade_time": "2026-06-05T13:35:51Z"
+    },
+    {
+      "symbol": "AMD",
+      "side": "SELL",
+      "size": 0.53,
+      "price": 498.87,
+      "trade_time": "2026-06-05T13:35:51Z"
+    },
+    {
+      "symbol": "LITE",
+      "side": "SELL",
+      "size": 0.18,
+      "price": 919.85,
+      "trade_time": "2026-06-05T13:35:51Z"
+    },
+    {
+      "symbol": "NET",
+      "side": "SELL",
+      "size": 0.99,
+      "price": 264.01,
+      "trade_time": "2026-06-05T13:35:51Z"
+    },
+    {
+      "symbol": "VSH",
+      "side": "SELL",
+      "size": 30.0,
+      "price": 59.33,
+      "trade_time": "2026-06-05T13:35:29Z"
+    },
+    {
+      "symbol": "GEV",
+      "side": "SELL",
+      "size": 0.3,
+      "price": 950.0,
+      "trade_time": "2026-06-05T13:33:31Z"
+    },
+    {
+      "symbol": "NET",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 267.52,
+      "trade_time": "2026-06-05T13:31:17Z"
+    },
+    {
+      "symbol": "NET",
+      "side": "SELL",
+      "size": 0.1,
+      "price": 267.64,
+      "trade_time": "2026-06-05T13:31:17Z"
+    },
+    {
+      "symbol": "GOOGL",
+      "side": "SELL",
+      "size": 0.6,
+      "price": 366.5,
+      "trade_time": "2026-06-05T13:30:57Z"
+    },
+    {
+      "symbol": "NOK",
+      "side": "SELL",
+      "size": 30.0,
+      "price": 15.63,
+      "trade_time": "2026-06-05T13:30:14Z"
+    },
+    {
+      "symbol": "MU",
+      "side": "SELL",
+      "size": 0.4,
+      "price": 943.23,
+      "trade_time": "2026-06-05T13:30:09Z"
+    },
+    {
+      "symbol": "SOXX",
+      "side": "SELL",
+      "size": 0.5,
+      "price": 577.59,
+      "trade_time": "2026-06-05T13:30:08Z"
+    },
+    {
+      "symbol": "MRVL",
+      "side": "SELL",
+      "size": 0.5,
+      "price": 298.05,
+      "trade_time": "2026-06-05T13:30:07Z"
+    },
+    {
+      "symbol": "TSM",
+      "side": "SELL",
+      "size": 0.6,
+      "price": 430.82,
+      "trade_time": "2026-06-05T13:30:07Z"
+    },
+    {
+      "symbol": "AMD",
+      "side": "SELL",
+      "size": 0.7,
+      "price": 500.85,
+      "trade_time": "2026-06-05T13:30:05Z"
+    },
+    {
+      "symbol": "REMX",
+      "side": "SELL",
+      "size": 0.4,
+      "price": 93.38,
+      "trade_time": "2026-06-05T13:30:05Z"
+    },
+    {
+      "symbol": "MRVL",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 297.31,
+      "trade_time": "2026-06-05T13:30:04Z"
+    },
+    {
+      "symbol": "CRWD",
+      "side": "SELL",
+      "size": 0.5,
+      "price": 698.76,
+      "trade_time": "2026-06-05T13:30:04Z"
+    },
+    {
+      "symbol": "AMD",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 500.44,
+      "trade_time": "2026-06-05T13:30:04Z"
+    },
+    {
+      "symbol": "AVGO",
+      "side": "SELL",
+      "size": 0.7,
+      "price": 409.77,
+      "trade_time": "2026-06-05T13:30:04Z"
+    },
+    {
+      "symbol": "AAOI",
+      "side": "SELL",
+      "size": 0.7,
+      "price": 190.98,
+      "trade_time": "2026-06-05T13:30:03Z"
+    },
+    {
+      "symbol": "DXYZ",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 44.9,
+      "trade_time": "2026-06-05T13:30:02Z"
+    },
+    {
+      "symbol": "VRT",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 313.36,
+      "trade_time": "2026-06-05T13:30:02Z"
+    },
+    {
+      "symbol": "LITE",
+      "side": "SELL",
+      "size": 0.2,
+      "price": 911.49,
+      "trade_time": "2026-06-05T13:30:01Z"
+    },
+    {
+      "symbol": "VSH",
+      "side": "SELL",
+      "size": 100.0,
+      "price": 60.87,
+      "trade_time": "2026-06-05T13:19:26Z"
+    },
+    {
+      "symbol": "SOXX",
+      "side": "SELL",
+      "size": 10.0,
+      "price": 578.6,
+      "trade_time": "2026-06-05T13:18:12Z"
+    },
+    {
+      "symbol": "INTC",
+      "side": "SELL",
+      "size": 20.0,
+      "price": 107.2,
+      "trade_time": "2026-06-05T13:17:29Z"
+    },
+    {
+      "symbol": "AAOI",
+      "side": "SELL",
+      "size": 3.0,
+      "price": 192.51,
+      "trade_time": "2026-06-05T13:16:07Z"
+    },
+    {
+      "symbol": "NOK",
+      "side": "SELL",
+      "size": 130.0,
+      "price": 15.74,
+      "trade_time": "2026-06-05T13:12:30Z"
+    },
+    {
+      "symbol": "LITE",
+      "side": "SELL",
+      "size": 3.0,
+      "price": 901.0,
+      "trade_time": "2026-06-05T13:11:24Z"
+    },
+    {
+      "symbol": "DRAM",
+      "side": "SELL",
+      "size": 20.0,
+      "price": 61.05,
+      "trade_time": "2026-06-05T13:01:14Z"
+    },
+    {
+      "symbol": "DRAM",
+      "side": "SELL",
+      "size": 20.0,
+      "price": 61.05,
+      "trade_time": "2026-06-05T13:01:14Z"
+    },
+    {
+      "symbol": "MU",
+      "side": "SELL",
+      "size": 3.0,
+      "price": 948.06,
+      "trade_time": "2026-06-05T12:38:12Z"
+    },
+    {
+      "symbol": "DRAM",
+      "side": "SELL",
+      "size": 20.0,
+      "price": 61.13,
+      "trade_time": "2026-06-05T12:37:34Z"
+    }
   ]
 }
