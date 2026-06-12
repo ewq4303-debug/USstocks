@@ -1196,7 +1196,7 @@ kc_{tk}.setOption({{
     {{ name: 'K線', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ohlc)}, itemStyle: {{color: '{T["up"]}', color0: '{T["down"]}', borderColor: '{T["up"]}', borderColor0: '{T["down"]}'}},
        markPoint: {{ symbol: 'circle', symbolSize: 6, animation: false,
          label: {{ show: true, position: 'top', distance: 10, color: '#fff', fontSize: 11, fontWeight: 'bold',
-           padding: [2, 4], borderRadius: 3, backgroundColor: 'inherit',
+           padding: [2, 4], borderRadius: 3, backgroundColor: 'inherit', borderColor: '#000', borderWidth: 1,
            formatter: function(p){{return p.data.lab;}} }},
          tooltip: {{ trigger: 'item', formatter: function(p){{return p.data.side + ' @ ' + p.data.price + ' × ' + p.data.size + ' 股';}} }},
          data: {mk_json} }} }},
@@ -1754,7 +1754,7 @@ body{font-family:var(--sans);color:var(--ink);line-height:1.5;padding:20px;min-h
 .tm-switch{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;user-select:none}
 .tm-switch input{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
 .tm-legend{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2)}
-.tm-pin{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;color:#fff;font-size:10px;font-weight:700;margin-right:3px}
+.tm-pin{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;border:1px solid #000;color:#fff;font-size:10px;font-weight:700;margin-right:3px}
 .tm-pin.buy{background:var(--up)} .tm-pin.sell{background:var(--down)}
 .ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .ai-box{border:1px solid var(--line);border-radius:11px;padding:16px;position:relative;overflow:hidden;background:linear-gradient(180deg,var(--surface),var(--surface-2))}
