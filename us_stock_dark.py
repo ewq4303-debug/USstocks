@@ -1373,8 +1373,8 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
                 st_up.append(None); st_dn.append(None)
 
         # 殘差動能副圖 — 對齊到顯示中的 K 線交易日 (殘差序列在 SPY 主日曆上)
-        # 單一共用軸 (兩者皆無因次 Z 值尺度)：rMOM 柱以顏色編碼門檻
-        # (≥+1 綠 / ≤-1 紅 / 中間灰)，Z_short 線 + ±2 淡色陰影區，僅留 0 軸虛線
+        # 單一共用軸 (兩者皆無因次 Z 值尺度)：Z_short 線 + rMOM 線，
+        # ±2 過熱/回檔淡色陰影區，僅留 0 軸虛線
         resid = data.get("resid")
         disp_dates = [d.date() if hasattr(d, "date") else d for d in df.index]
         z_vals = [None] * len(dates)
@@ -1398,8 +1398,6 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
             a_txt = f"α20日 {ra_last*20/252*100:+.1f}%" if pd.notna(ra_last) else "α20日 -"
             rm_txt = f"rMOM {resid['rmom']:.2f}" if pd.notna(resid["rmom"]) else "rMOM -"
             resid_title = f"殘差動能 vs {fct} · {b_txt} {r2_txt} · {a_txt} · {rm_txt} [{RM_SIGNAL_ZH[resid['signal']]}]"
-        rmom_color = ["rgba(139,149,165,.38)" if (v is None or -1 < v < 1)
-                      else (T["up"] if v >= 1 else T["down"]) for v in rmom_vals]
 
         scripts.append(f"""
 var kc_{tk} = echarts.init(document.getElementById('kline_{tk}'));
@@ -1461,7 +1459,7 @@ kc_{tk}.setOption({{
     {{ name: 'MACD', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
     {{ name: 'Signal', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_sig)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
     {{ name: 'Hist', type: 'bar', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_hist)}, itemStyle: {{color: function(p){{return {json.dumps(macd_hist_color)}[p.dataIndex];}}}} }},
-    {{ name: 'rMOM', type: 'bar', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(rmom_vals)}, itemStyle: {{color: function(p){{return {json.dumps(rmom_color)}[p.dataIndex];}}}} }},
+    {{ name: 'rMOM', type: 'line', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(rmom_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["ma20"]}'}} }},
     {{ name: 'Z(21日)', type: 'line', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(z_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["rsi"]}'}},
        markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 0, lineStyle: {{color: '{T["neutral"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }},
        markArea: {{ silent: true, data: [
