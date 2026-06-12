@@ -13,6 +13,7 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 import yfinance as yf
 import pandas as pd
+import numpy as np
 import concurrent.futures
 
 try:
@@ -54,6 +55,31 @@ SECTOR_ETFS = {
     "XLK": "科技", "XLF": "金融", "XLV": "醫療", "XLY": "非必需消費",
     "XLP": "必需消費", "XLE": "能源", "XLI": "工業", "XLU": "公用事業",
     "XLB": "原物料", "XLRE": "房地產", "XLC": "通訊服務",
+}
+
+# ===== 殘差動能 (Residual Momentum) 參數 — 見 SPEC_residual_momentum =====
+RM_FETCH_PERIOD   = "3y"   # 需覆蓋回歸視窗 + 指標歷史
+RM_REG_WINDOW     = 252    # 滾動回歸視窗 (交易日)
+RM_MIN_WINDOW     = 120    # 視窗內有效樣本低於此數 → 該日殘差 NaN
+RM_OSC_WINDOW     = 20     # 滾動 Alpha 震盪平均視窗
+RM_MOM_FORM_START = 252    # rMOM 形成期起點 (t-252)
+RM_MOM_FORM_END   = 21     # rMOM 形成期終點 (t-21)，即 12-1 月動能
+RM_MOM_MIN_OBS    = 150    # 形成期有效殘差數低於此 → rMOM NaN
+RM_Z_SHORT_WINDOW = 21     # 短期 Z-Score 視窗
+RM_Z_STD_WINDOW   = 252    # Z-Score 分母波動率估計視窗
+RM_MARKET_ETF     = "SPY"  # 市場因子
+
+# yfinance info['sector'] → SPDR 類股 ETF (半導體業另以 SOXX 覆寫)
+YF_SECTOR_ETF = {
+    "Technology": "XLK", "Financial Services": "XLF", "Healthcare": "XLV",
+    "Consumer Cyclical": "XLY", "Consumer Defensive": "XLP", "Energy": "XLE",
+    "Industrials": "XLI", "Utilities": "XLU", "Basic Materials": "XLB",
+    "Real Estate": "XLRE", "Communication Services": "XLC",
+}
+
+RM_SIGNAL_ZH = {
+    "overheat": "強勢過熱", "pullback": "強勢回檔", "strong": "強勢",
+    "weak": "弱勢", "neutral": "中性", "no_signal": "無訊號",
 }
 
 # =========================================================
@@ -184,9 +210,136 @@ def calculate_supertrend(df, period=10, multiplier=3):
     return pd.Series(supertrend, index=df.index), pd.Series(direction, index=df.index)
 
 # =========================================================
+# 殘差動能 (Residual Momentum)
+# 滾動雙因子回歸剃除「大盤 + 類股」Beta，取純個股殘差 ε 計算動能。
+# =========================================================
+def sector_etf_for(fund: dict):
+    """個股 → 類股因子 ETF。半導體業用 SOXX，其餘依 yfinance sector 對應 SPDR；
+    無法對應 (含 ETF 本身) → None，退化為單因子 (只對 SPY 回歸)。"""
+    if "semiconductor" in (fund.get("industry") or "").lower():
+        return "SOXX"
+    return YF_SECTOR_ETF.get(fund.get("sector"))
+
+def _naive_daily_index(s: pd.Series) -> pd.Series:
+    """tz-aware 日線索引 → 無時區日期，供跨標的對齊"""
+    s = s.copy()
+    if getattr(s.index, "tz", None) is not None:
+        s.index = s.index.tz_localize(None)
+    s.index = s.index.normalize()
+    return s[~s.index.duplicated(keep="last")]
+
+def _log_returns(close: pd.Series, calendar: pd.DatetimeIndex, label: str = "") -> np.ndarray:
+    """對齊主日曆 (不 forward-fill) 後取對數報酬；|r|>1 視為資料異常設 NaN"""
+    p = close.reindex(calendar)
+    r = np.log(p / p.shift(1)).to_numpy()
+    bad = np.abs(r) > 1.0
+    if bad.any():
+        print(f"    [Warn] {label} 有 {int(np.nansum(bad))} 筆 |r|>100% 異常報酬，已設 NaN")
+        r[bad] = np.nan
+    return r
+
+def fetch_factor_closes(sector_etfs: set) -> dict:
+    """抓 SPY + 所有需要的類股 ETF 還原收盤價"""
+    out = {}
+    for sym in [RM_MARKET_ETF] + sorted(sector_etfs):
+        try:
+            df = yf.Ticker(sym).history(period=RM_FETCH_PERIOD)
+            if df is None or df.empty:
+                continue
+            out[sym] = _naive_daily_index(df["Close"].dropna())
+        except Exception as e:
+            print(f"    [Warn] 因子 {sym} 抓取失敗: {e}")
+    return out
+
+def compute_residual_momentum(stock_close: pd.Series, mkt_close: pd.Series, sec_close=None):
+    """r_stock = α + β_mkt·r_SPY + β_sec·r_SECTOR + ε
+    防 look-ahead: 第 t 日係數只用 [t-252, t-1] 估計。
+    殘差刻意不扣 α̂ (保留特異性漂移)，勿改。"""
+    mkt_close = mkt_close.dropna()
+    cal = mkt_close.index  # 主日曆 = SPY 交易日
+    r_y = _log_returns(_naive_daily_index(stock_close), cal, "stock")
+    r_m = _log_returns(mkt_close, cal, RM_MARKET_ETF)
+    r_s = _log_returns(sec_close, cal, "sector") if sec_close is not None else None
+    n = len(cal)
+    eps = np.full(n, np.nan)
+    beta_m = np.full(n, np.nan)
+    beta_s = np.full(n, np.nan)
+    r2 = np.full(n, np.nan)
+    for t in range(1, n):
+        lo = max(0, t - RM_REG_WINDOW)
+        yy, mm = r_y[lo:t], r_m[lo:t]
+        mask = ~(np.isnan(yy) | np.isnan(mm))
+        if r_s is not None:
+            ss = r_s[lo:t]
+            mask &= ~np.isnan(ss)
+        if int(mask.sum()) < RM_MIN_WINDOW:
+            continue
+        cols = [np.ones(int(mask.sum())), mm[mask]]
+        if r_s is not None:
+            cols.append(ss[mask])
+        X = np.column_stack(cols)
+        yv = yy[mask]
+        coef, *_ = np.linalg.lstsq(X, yv, rcond=None)
+        res = yv - X @ coef
+        ss_tot = float(((yv - yv.mean()) ** 2).sum())
+        r2[t] = 1 - float((res ** 2).sum()) / ss_tot if ss_tot > 0 else np.nan
+        beta_m[t] = coef[1]
+        if r_s is not None:
+            beta_s[t] = coef[2]
+        if not (np.isnan(r_y[t]) or np.isnan(r_m[t]) or (r_s is not None and np.isnan(r_s[t]))):
+            eps[t] = r_y[t] - coef[1] * r_m[t] - (coef[2] * r_s[t] if r_s is not None else 0.0)
+
+    e = pd.Series(eps, index=cal)
+    # 滾動計算: 視窗內剔 NaN，有效樣本低於視窗 70% → NaN
+    rolling_alpha = e.rolling(RM_OSC_WINDOW, min_periods=int(math.ceil(RM_OSC_WINDOW * 0.7))).mean() * 252
+    z_num = e.rolling(RM_Z_SHORT_WINDOW, min_periods=int(math.ceil(RM_Z_SHORT_WINDOW * 0.7))).sum()
+    z_den = e.rolling(RM_Z_STD_WINDOW, min_periods=int(math.ceil(RM_Z_STD_WINDOW * 0.7))).std(ddof=1) * math.sqrt(RM_Z_SHORT_WINDOW)
+    z_short = z_num / z_den
+
+    # rMOM (12-1 月，IR 標準化): 形成期 [t-252, t-21]，分母 std×√N_eff (無因次 Z 值)
+    rmom = float("nan")
+    t = n - 1
+    lo, hi = t - RM_MOM_FORM_START, t - RM_MOM_FORM_END
+    if t >= 0 and lo >= 0:
+        form = eps[lo:hi + 1]
+        valid = form[~np.isnan(form)]
+        if len(valid) >= RM_MOM_MIN_OBS:
+            sd = float(valid.std(ddof=1))
+            if sd > 0:
+                rmom = float(valid.sum()) / (sd * math.sqrt(len(valid)))
+
+    latest_r2 = float(r2[t]) if n else float("nan")
+    z_last = float(z_short.iloc[-1]) if n and pd.notna(z_short.iloc[-1]) else float("nan")
+    # 訊號分類 (依序判斷，先中先得)
+    if math.isnan(rmom) or math.isnan(latest_r2) or latest_r2 < 0.20:
+        signal = "no_signal"
+    elif rmom >= 1.0 and z_last > 2.0:
+        signal = "overheat"
+    elif rmom >= 1.0 and z_last < -2.0:
+        signal = "pullback"
+    elif rmom >= 1.0:
+        signal = "strong"
+    elif rmom <= -1.0:
+        signal = "weak"
+    else:
+        signal = "neutral"
+
+    return {
+        "dates": cal,
+        "rolling_alpha": rolling_alpha,
+        "z_short": z_short,
+        "rmom": rmom,
+        "z_last": z_last,
+        "r2": latest_r2,
+        "beta_mkt": float(beta_m[t]) if n and pd.notna(beta_m[t]) else float("nan"),
+        "beta_sec": float(beta_s[t]) if n and pd.notna(beta_s[t]) else float("nan"),
+        "signal": signal,
+    }
+
+# =========================================================
 # 個股資料 (yfinance)
 # =========================================================
-def get_stock_data(ticker: str, period: str = "1y"):
+def get_stock_data(ticker: str, period: str = RM_FETCH_PERIOD):  # 3y: 覆蓋殘差動能 252 日回歸視窗
     try:
         t = yf.Ticker(ticker)
         df = t.history(period=period)
@@ -220,6 +373,7 @@ def get_stock_data(ticker: str, period: str = "1y"):
         return {
             "ticker": ticker,
             "df": df90,
+            "close_full": df["Close"].copy(),  # 完整還原收盤序列 (殘差動能回歸用)
             "latest": {"close": _f(latest["Close"]), "volume": int(latest["Volume"]) if pd.notna(latest["Volume"]) else 0,
                        "high": _f(latest["High"]), "low": _f(latest["Low"]), "open": _f(latest["Open"])},
             "prev": {"close": _f(prev["Close"])},
@@ -246,6 +400,7 @@ def get_fundamentals(info: dict):
     return {
         "name": g("shortName", "longName") or "",
         "sector": g("sector") or "-",
+        "industry": g("industry") or "",
         "trailing_pe": g("trailingPE"),
         "forward_pe": g("forwardPE"),
         "peg": g("trailingPegRatio", "pegRatio"),
@@ -875,7 +1030,7 @@ def generate_stock_card(ticker: str, data: dict, opt: dict, fund: dict) -> str:
 
         <div class="sc-detail">
           {fund_strip}
-          <div id="kline_{ticker}" class="chart-box" style="height:600px;"></div>
+          <div id="kline_{ticker}" class="chart-box" style="height:700px;"></div>
 
           <details class="fold" open>
             <summary>選擇權分析 (Put/Call · IV · Max Pain)</summary>
@@ -1160,15 +1315,32 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
             else:
                 st_up.append(None); st_dn.append(None)
 
+        # 殘差動能副圖 — 對齊到顯示中的 K 線交易日 (殘差序列在 SPY 主日曆上)
+        resid = data.get("resid")
+        disp_dates = [d.date() if hasattr(d, "date") else d for d in df.index]
+        ra_vals = [None] * len(dates)
+        z_vals = [None] * len(dates)
+        resid_title = "殘差動能 (資料不足)"
+        if resid:
+            ra_map = {d.date(): v for d, v in resid["rolling_alpha"].items()}
+            z_map = {d.date(): v for d, v in resid["z_short"].items()}
+            ra_vals = [round(float(ra_map[d]), 4) if pd.notna(ra_map.get(d)) else None for d in disp_dates]
+            z_vals = [round(float(z_map[d]), 2) if pd.notna(z_map.get(d)) else None for d in disp_dates]
+            fct = "SPY+" + resid["sector_etf"] if resid.get("sector_etf") else "SPY"
+            b_txt = f"β {resid['beta_mkt']:.2f}" if pd.notna(resid["beta_mkt"]) else "β -"
+            r2_txt = f"R² {resid['r2']:.2f}" if pd.notna(resid["r2"]) else "R² -"
+            rm_txt = f"rMOM {resid['rmom']:.2f}" if pd.notna(resid["rmom"]) else "rMOM -"
+            resid_title = f"殘差動能 vs {fct} · {b_txt} {r2_txt} · {rm_txt} [{RM_SIGNAL_ZH[resid['signal']]}]"
+        ra_color = [T["up"] if (v is not None and v >= 0) else T["down"] for v in ra_vals]
 
-        
         scripts.append(f"""
 var kc_{tk} = echarts.init(document.getElementById('kline_{tk}'));
 kc_{tk}.setOption({{
   title: [
     {{ text: 'K線 · MA20/50/200 · 成交量', left: '6%', top: '1%', textStyle: {{fontSize: 12, color: '{T["title"]}'}} }},
-    {{ text: 'KD(14,3,3)', left: '6%', top: '60%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
-    {{ text: 'MACD(12,26,9)', left: '6%', top: '80%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
+    {{ text: '{resid_title}', left: '6%', top: '46%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
+    {{ text: 'KD(14,3,3)', left: '6%', top: '62%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
+    {{ text: 'MACD(12,26,9)', left: '6%', top: '78%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
   ],
   legend: {{ data: ['MA20','MA50','MA200','Supertrend↑','Supertrend↓','K','D'], top: '1%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
   tooltip: {{ trigger: 'axis', axisPointer: {{ type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}} }},
@@ -1176,24 +1348,28 @@ kc_{tk}.setOption({{
     textStyle: {{color: '{T["tooltip_text"]}', fontSize: 12, fontFamily: 'IBM Plex Mono'}} }},
   axisPointer: {{ link: {{xAxisIndex: 'all'}} }},
   grid: [
-    {{ left: '6%', right: '6%', top: '5%', height: '48%' }},
-    {{ left: '6%', right: '6%', top: '63%', height: '13%' }},
-    {{ left: '6%', right: '6%', top: '83%', height: '12%' }}
+    {{ left: '6%', right: '6%', top: '5%', height: '40%' }},
+    {{ left: '6%', right: '6%', top: '65%', height: '11%' }},
+    {{ left: '6%', right: '6%', top: '81%', height: '11%' }},
+    {{ left: '6%', right: '6%', top: '49%', height: '11%' }}
   ],
   xAxis: [
     {{ type: 'category', gridIndex: 0, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
     {{ type: 'category', gridIndex: 1, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: false}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
-    {{ type: 'category', gridIndex: 2, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}
+    {{ type: 'category', gridIndex: 2, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+    {{ type: 'category', gridIndex: 3, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: false}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}
   ],
   yAxis: [
     {{ scale: true, gridIndex: 0, splitNumber: 5, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0);}}}} }},
     {{ scale: true, gridIndex: 0, show: false, max: function(v){{return Math.max(v.max*6,1);}} }},
     {{ scale: false, gridIndex: 1, min: 0, max: 100, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
-    {{ scale: true, gridIndex: 2, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }}
+    {{ scale: true, gridIndex: 2, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+    {{ scale: true, gridIndex: 3, splitNumber: 2, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return (v*100).toFixed(0)+'%';}}}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+    {{ scale: true, gridIndex: 3, show: false, splitLine: {{show: false}} }}
   ],
   dataZoom: [
-    {{ type: 'inside', xAxisIndex: [0,1,2], start: 40, end: 100 }},
-    {{ show: true, type: 'slider', xAxisIndex: [0,1,2], bottom: 8, height: 14, start: 40, end: 100, borderColor: '{T["dz_border"]}', fillerColor: '{T["dz_filler"]}', handleStyle: {{color: '{T["dz_handle"]}'}}, textStyle: {{color: '{T["dz_text"]}'}}, dataBackground: {{lineStyle: {{color: '{T["dz_bg_line"]}'}}, areaStyle: {{color: '{T["dz_bg_area"]}'}}}} }}
+    {{ type: 'inside', xAxisIndex: [0,1,2,3], start: 40, end: 100 }},
+    {{ show: true, type: 'slider', xAxisIndex: [0,1,2,3], bottom: 8, height: 14, start: 40, end: 100, borderColor: '{T["dz_border"]}', fillerColor: '{T["dz_filler"]}', handleStyle: {{color: '{T["dz_handle"]}'}}, textStyle: {{color: '{T["dz_text"]}'}}, dataBackground: {{lineStyle: {{color: '{T["dz_bg_line"]}'}}, areaStyle: {{color: '{T["dz_bg_area"]}'}}}} }}
   ],
   series: [
     {{ name: 'K線', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ohlc)}, itemStyle: {{color: '{T["up"]}', color0: '{T["down"]}', borderColor: '{T["up"]}', borderColor0: '{T["down"]}'}},
@@ -1214,7 +1390,10 @@ kc_{tk}.setOption({{
     {{ name: 'D', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(d_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.2, color: '{T["ma20"]}'}} }},
     {{ name: 'MACD', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
     {{ name: 'Signal', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_sig)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
-    {{ name: 'Hist', type: 'bar', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_hist)}, itemStyle: {{color: function(p){{return {json.dumps(macd_hist_color)}[p.dataIndex];}}}} }}
+    {{ name: 'Hist', type: 'bar', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_hist)}, itemStyle: {{color: function(p){{return {json.dumps(macd_hist_color)}[p.dataIndex];}}}} }},
+    {{ name: 'α20日年化', type: 'bar', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(ra_vals)}, itemStyle: {{color: function(p){{return {json.dumps(ra_color)}[p.dataIndex];}}}} }},
+    {{ name: 'Z(21日)', type: 'line', xAxisIndex: 3, yAxisIndex: 5, data: {json.dumps(z_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.2, color: '{T["ma200"]}'}},
+       markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 2, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}}}, {{yAxis: -2, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }} }}
   ]
 }});
 window._klineCharts = window._klineCharts || {{}};
@@ -2197,6 +2376,7 @@ def process_single_stock(ticker):
 
     record = {
         "ticker": ticker, "name": name, "df": sd["df"], "latest": sd["latest"], "prev": sd["prev"],
+        "close_full": sd["close_full"],
         "indicators": sd["indicators"], "change_pct": change_pct, "news": news,
         "ai_tech": ai_tech, "ai_oper": ai_oper,
     }
@@ -2208,7 +2388,7 @@ def main():
     print(f'=== 美股監控機器人 ({now_et().strftime("%Y-%m-%d %H:%M")} ET) ===\n')
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    print("[1/4] 平行抓取個股...")
+    print("[1/5] 平行抓取個股...")
     stocks_data, options_data, fund_data = {}, {}, {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
         futures = {ex.submit(process_single_stock, tk): tk for tk in STOCKS}
@@ -2223,20 +2403,41 @@ def main():
             except Exception as exc:
                 print(f"  ⚠️ {tk} 錯誤: {exc}")
 
-    print("\n[2/4] 抓取大盤/總經...")
+    print("\n[2/5] 計算殘差動能 (滾動雙因子回歸 vs SPY/類股 ETF)...")
+    needed_etfs = {sector_etf_for(fund_data.get(tk, {})) for tk in stocks_data}
+    needed_etfs.discard(None)
+    factors = fetch_factor_closes(needed_etfs)
+    mkt_close = factors.get(RM_MARKET_ETF)
+    for tk, record in stocks_data.items():
+        record["resid"] = None
+        if mkt_close is None:
+            continue
+        try:
+            sec_sym = sector_etf_for(fund_data.get(tk, {}))
+            if tk == sec_sym:  # 類股 ETF 本身不對自己回歸
+                sec_sym = None
+            rm = compute_residual_momentum(record["close_full"], mkt_close, factors.get(sec_sym))
+            rm["sector_etf"] = sec_sym if sec_sym in factors else None
+            record["resid"] = rm
+            rm_txt = f"{rm['rmom']:.2f}" if pd.notna(rm["rmom"]) else "-"
+            print(f"  ✓ {tk} vs SPY{'+' + sec_sym if rm['sector_etf'] else ''} | rMOM {rm_txt} · {RM_SIGNAL_ZH[rm['signal']]}")
+        except Exception as e:
+            print(f"  ⚠️ {tk} 殘差動能計算失敗: {e}")
+
+    print("\n[3/5] 抓取大盤/總經...")
     md = get_market_overview()
     print(f"  ✓ S&P {len(md.get('spx',[]))} 筆 · 類股 {len(md.get('sectors',[]))} · F&G {md.get('fear_greed',{}).get('score')}")
 
     ORDER = {"sb": 0, "b": 1, "n": 2, "s": 3, "ss": 4}
     stocks_data = dict(sorted(stocks_data.items(), key=lambda kv: (ORDER.get(kv[1]["rating"]["rating_key"], 9), -kv[1]["rating"]["total"])))
 
-    print("\n[3/4] 生成 HTML...")
+    print("\n[4/5] 生成 HTML...")
     html = generate_html(stocks_data, options_data, fund_data, md)
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"  ✓ {OUTPUT_FILE}")
 
-    print("\n[4/4] 更新 GitHub Pages...")
+    print("\n[5/5] 更新 GitHub Pages...")
     try:
         subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
         subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
