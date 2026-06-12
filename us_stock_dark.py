@@ -1386,10 +1386,16 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
             z_vals = [round(float(z_map[d]), 2) if pd.notna(z_map.get(d)) else None for d in disp_dates]
             rmom_vals = [round(float(rm_map[d]), 2) if pd.notna(rm_map.get(d)) else None for d in disp_dates]
             fct = "SPY+" + resid["sector_etf"] if resid.get("sector_etf") else "SPY"
-            b_txt = f"β {resid['beta_mkt']:.2f}" if pd.notna(resid["beta_mkt"]) else "β -"
+            # 雙因子時兩個 β 都顯示 (順序同 fct)；SPY/類股 ETF 高度共線，
+            # β_mkt 單獨看可能為負，必須搭配 β_sec 解讀
+            if resid.get("sector_etf") and pd.notna(resid["beta_sec"]):
+                b_txt = f"β {resid['beta_mkt']:.2f}/{resid['beta_sec']:.2f}" if pd.notna(resid["beta_mkt"]) else "β -"
+            else:
+                b_txt = f"β {resid['beta_mkt']:.2f}" if pd.notna(resid["beta_mkt"]) else "β -"
             r2_txt = f"R² {resid['r2']:.2f}" if pd.notna(resid["r2"]) else "R² -"
             ra_last = resid["rolling_alpha"].iloc[-1] if len(resid["rolling_alpha"]) else float("nan")
-            a_txt = f"α20 {ra_last*100:+.0f}%" if pd.notna(ra_last) else "α20 -"
+            # 顯示 20 日累積超額 (年化在事件行情下會放大到誤導，如單日 +28% → 年化 +430%)
+            a_txt = f"α20日 {ra_last*20/252*100:+.1f}%" if pd.notna(ra_last) else "α20日 -"
             rm_txt = f"rMOM {resid['rmom']:.2f}" if pd.notna(resid["rmom"]) else "rMOM -"
             resid_title = f"殘差動能 vs {fct} · {b_txt} {r2_txt} · {a_txt} · {rm_txt} [{RM_SIGNAL_ZH[resid['signal']]}]"
         rmom_color = ["rgba(139,149,165,.38)" if (v is None or -1 < v < 1)
