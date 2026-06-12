@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 cache/
+positions.json
+trades.json
+summary.json
+raw.json
