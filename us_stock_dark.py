@@ -1129,7 +1129,9 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
                     "price": m["price"],
                     "size": m["size"],
                     "itemStyle": {"color": T["up"] if is_buy else T["down"],
-                                  "borderColor": "#fff", "borderWidth": 1},
+                                  "borderColor": "#000", "borderWidth": 1},
+                    # 買標籤貼近、賣標籤抬高 → B/S 不重疊
+                    "label": {"position": "top", "distance": 8 if is_buy else 24},
                 })
         mk_json = json.dumps(mk_data, ensure_ascii=False)
         ohlc = [[float(r["Open"]), float(r["Close"]), float(r["Low"]), float(r["High"])] for _, r in df.iterrows()]
@@ -1138,7 +1140,8 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
         ma20 = [round(v, 2) if pd.notna(v) else None for v in df["SMA_20"].tolist()]
         ma50 = [round(v, 2) if pd.notna(v) else None for v in df["SMA_50"].tolist()]
         ma200 = [round(v, 2) if pd.notna(v) else None for v in df["SMA_200"].tolist()]
-        rsi = [round(v, 2) if pd.notna(v) else None for v in df["RSI_14"].tolist()]
+        k_vals = [round(v, 2) if pd.notna(v) else None for v in df["K"].tolist()]
+        d_vals = [round(v, 2) if pd.notna(v) else None for v in df["D"].tolist()]
         macd = [round(v, 3) if pd.notna(v) else None for v in df["MACD"].tolist()]
         macd_sig = [round(v, 3) if pd.notna(v) else None for v in df["MACD_Signal"].tolist()]
         macd_hist = [round(v, 3) if pd.notna(v) else None for v in df["MACD_Hist"].tolist()]
@@ -1164,10 +1167,10 @@ var kc_{tk} = echarts.init(document.getElementById('kline_{tk}'));
 kc_{tk}.setOption({{
   title: [
     {{ text: 'K線 · MA20/50/200 · 成交量', left: '6%', top: '1%', textStyle: {{fontSize: 12, color: '{T["title"]}'}} }},
-    {{ text: 'RSI(14)', left: '6%', top: '60%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
+    {{ text: 'KD(14,3,3)', left: '6%', top: '60%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
     {{ text: 'MACD(12,26,9)', left: '6%', top: '80%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
   ],
-  legend: {{ data: ['MA20','MA50','MA200','Supertrend↑','Supertrend↓'], top: '1%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+  legend: {{ data: ['MA20','MA50','MA200','Supertrend↑','Supertrend↓','K','D'], top: '1%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
   tooltip: {{ trigger: 'axis', axisPointer: {{ type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}} }},
     backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1,
     textStyle: {{color: '{T["tooltip_text"]}', fontSize: 12, fontFamily: 'IBM Plex Mono'}} }},
@@ -1196,7 +1199,7 @@ kc_{tk}.setOption({{
     {{ name: 'K線', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ohlc)}, itemStyle: {{color: '{T["up"]}', color0: '{T["down"]}', borderColor: '{T["up"]}', borderColor0: '{T["down"]}'}},
        markPoint: {{ symbol: 'circle', symbolSize: 6, animation: false,
          label: {{ show: true, position: 'top', distance: 10, color: '#fff', fontSize: 11, fontWeight: 'bold',
-           padding: [2, 4], borderRadius: 3, backgroundColor: 'inherit', borderColor: '#000', borderWidth: 1,
+           padding: [2, 4], borderRadius: 3, backgroundColor: 'inherit', borderColor: '#fff', borderWidth: 1,
            formatter: function(p){{return p.data.lab;}} }},
          tooltip: {{ trigger: 'item', formatter: function(p){{return p.data.side + ' @ ' + p.data.price + ' × ' + p.data.size + ' 股';}} }},
          data: {mk_json} }} }},
@@ -1206,8 +1209,9 @@ kc_{tk}.setOption({{
     {{ name: 'Supertrend↑', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_up)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["up"]}'}} }},
     {{ name: 'Supertrend↓', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_dn)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["down"]}'}} }},
     {{ name: '成交量', type: 'bar', xAxisIndex: 0, yAxisIndex: 1, data: {json.dumps(vol)}, itemStyle: {{color: function(p){{return {json.dumps(vol_color)}[p.dataIndex];}}}} }},
-    {{ name: 'RSI', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(rsi)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.2, color: '{T["rsi"]}'}},
-       markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 70, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}}}, {{yAxis: 30, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }} }},
+    {{ name: 'K', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(k_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.2, color: '{T["rsi"]}'}},
+       markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 80, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}}}, {{yAxis: 20, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }} }},
+    {{ name: 'D', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(d_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.2, color: '{T["ma20"]}'}} }},
     {{ name: 'MACD', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
     {{ name: 'Signal', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_sig)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
     {{ name: 'Hist', type: 'bar', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_hist)}, itemStyle: {{color: function(p){{return {json.dumps(macd_hist_color)}[p.dataIndex];}}}} }}
