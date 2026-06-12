@@ -1373,18 +1373,21 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
                 st_up.append(None); st_dn.append(None)
 
         # 殘差動能副圖 — 對齊到顯示中的 K 線交易日 (殘差序列在 SPY 主日曆上)
-        # 單一共用軸 (兩者皆無因次 Z 值尺度)：Z_short 線 + rMOM 線，
-        # ±2 過熱/回檔淡色陰影區，僅留 0 軸虛線
+        # 左軸 (Z 值尺度)：Z_short 線 + rMOM 線 + ±2 淡色陰影區 + 0 軸虛線；
+        # 右軸 (%)：20 日滾動 Alpha 年化柱 (半透明零軸分色，墊在線下)
         resid = data.get("resid")
         disp_dates = [d.date() if hasattr(d, "date") else d for d in df.index]
         z_vals = [None] * len(dates)
         rmom_vals = [None] * len(dates)
+        ra_vals = [None] * len(dates)
         resid_title = "殘差動能 (資料不足)"
         if resid:
             z_map = {d.date(): v for d, v in resid["z_short"].items()}
             rm_map = {d.date(): v for d, v in resid["rmom_series"].items()}
+            ra_map = {d.date(): v for d, v in resid["rolling_alpha"].items()}
             z_vals = [round(float(z_map[d]), 2) if pd.notna(z_map.get(d)) else None for d in disp_dates]
             rmom_vals = [round(float(rm_map[d]), 2) if pd.notna(rm_map.get(d)) else None for d in disp_dates]
+            ra_vals = [round(float(ra_map[d]), 4) if pd.notna(ra_map.get(d)) else None for d in disp_dates]
             fct = "SPY+" + resid["sector_etf"] if resid.get("sector_etf") else "SPY"
             # 雙因子時兩個 β 都顯示 (順序同 fct)；SPY/類股 ETF 高度共線，
             # β_mkt 單獨看可能為負，必須搭配 β_sec 解讀
@@ -1398,6 +1401,7 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
             a_txt = f"α20日 {ra_last*20/252*100:+.1f}%" if pd.notna(ra_last) else "α20日 -"
             rm_txt = f"rMOM {resid['rmom']:.2f}" if pd.notna(resid["rmom"]) else "rMOM -"
             resid_title = f"殘差動能 vs {fct} · {b_txt} {r2_txt} · {a_txt} · {rm_txt} [{RM_SIGNAL_ZH[resid['signal']]}]"
+        ra_color = ["rgba(34,211,154,.45)" if (v is not None and v >= 0) else "rgba(255,82,91,.45)" for v in ra_vals]
 
         scripts.append(f"""
 var kc_{tk} = echarts.init(document.getElementById('kline_{tk}'));
@@ -1408,7 +1412,7 @@ kc_{tk}.setOption({{
     {{ text: 'KD(14,3,3)', left: '6%', top: '60.5%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
     {{ text: 'MACD(12,26,9)', left: '6%', top: '76%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
   ],
-  legend: {{ type: 'scroll', data: ['MA20','MA60','MA200','Supertrend↑','Supertrend↓','成交量','Z(21日)','rMOM','K','D','MACD','Signal','Hist'],
+  legend: {{ type: 'scroll', data: ['MA20','MA60','MA200','Supertrend↑','Supertrend↓','成交量','Z(21日)','rMOM','α20日年化','K','D','MACD','Signal','Hist'],
     selected: {{'MA60': false, 'MA200': false}},
     top: '1%', left: '32%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8,
     pageIconColor: '{T["legend"]}', pageIconInactiveColor: '{T["axis_line"]}', pageIconSize: 10, pageTextStyle: {{color: '{T["legend"]}', fontSize: 9}} }},
@@ -1433,7 +1437,8 @@ kc_{tk}.setOption({{
     {{ scale: true, gridIndex: 0, show: false, max: function(v){{return Math.max(v.max*6,1);}} }},
     {{ scale: false, gridIndex: 1, min: 0, max: 100, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     {{ scale: true, gridIndex: 2, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
-    {{ gridIndex: 3, splitNumber: 2, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{show: false}} }}
+    {{ gridIndex: 3, splitNumber: 2, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{show: false}} }},
+    {{ gridIndex: 3, position: 'right', splitNumber: 2, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return (v*100).toFixed(0)+'%';}}}}, splitLine: {{show: false}} }}
   ],
   dataZoom: [
     {{ type: 'inside', xAxisIndex: [0,1,2,3], start: 40, end: 100 }},
@@ -1459,6 +1464,7 @@ kc_{tk}.setOption({{
     {{ name: 'MACD', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
     {{ name: 'Signal', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_sig)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
     {{ name: 'Hist', type: 'bar', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_hist)}, itemStyle: {{color: function(p){{return {json.dumps(macd_hist_color)}[p.dataIndex];}}}} }},
+    {{ name: 'α20日年化', type: 'bar', xAxisIndex: 3, yAxisIndex: 5, data: {json.dumps(ra_vals)}, itemStyle: {{color: function(p){{return {json.dumps(ra_color)}[p.dataIndex];}}}} }},
     {{ name: 'rMOM', type: 'line', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(rmom_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["ma20"]}'}} }},
     {{ name: 'Z(21日)', type: 'line', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(z_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["rsi"]}'}},
        markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 0, lineStyle: {{color: '{T["neutral"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }},
