@@ -1373,7 +1373,8 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
                 st_up.append(None); st_dn.append(None)
 
         # 殘差動能副圖 — 對齊到顯示中的 K 線交易日 (殘差序列在 SPY 主日曆上)
-        # 左軸 Z_short 柱 (零軸分色、±2 參考線)，右軸 rMOM 線 (+1/0 參考線)
+        # 單一共用軸 (兩者皆無因次 Z 值尺度)：rMOM 柱以顏色編碼門檻
+        # (≥+1 綠 / ≤-1 紅 / 中間灰)，Z_short 線 + ±2 淡色陰影區，僅留 0 軸虛線
         resid = data.get("resid")
         disp_dates = [d.date() if hasattr(d, "date") else d for d in df.index]
         z_vals = [None] * len(dates)
@@ -1391,7 +1392,8 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
             a_txt = f"α20 {ra_last*100:+.0f}%" if pd.notna(ra_last) else "α20 -"
             rm_txt = f"rMOM {resid['rmom']:.2f}" if pd.notna(resid["rmom"]) else "rMOM -"
             resid_title = f"殘差動能 vs {fct} · {b_txt} {r2_txt} · {a_txt} · {rm_txt} [{RM_SIGNAL_ZH[resid['signal']]}]"
-        z_color = [T["up"] if (v is not None and v >= 0) else T["down"] for v in z_vals]
+        rmom_color = ["rgba(139,149,165,.38)" if (v is None or -1 < v < 1)
+                      else (T["up"] if v >= 1 else T["down"]) for v in rmom_vals]
 
         scripts.append(f"""
 var kc_{tk} = echarts.init(document.getElementById('kline_{tk}'));
@@ -1427,8 +1429,7 @@ kc_{tk}.setOption({{
     {{ scale: true, gridIndex: 0, show: false, max: function(v){{return Math.max(v.max*6,1);}} }},
     {{ scale: false, gridIndex: 1, min: 0, max: 100, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     {{ scale: true, gridIndex: 2, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
-    {{ scale: true, gridIndex: 3, splitNumber: 2, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
-    {{ scale: true, gridIndex: 3, position: 'right', splitNumber: 2, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{show: false}} }}
+    {{ gridIndex: 3, splitNumber: 2, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{show: false}} }}
   ],
   dataZoom: [
     {{ type: 'inside', xAxisIndex: [0,1,2,3], start: 40, end: 100 }},
@@ -1454,10 +1455,13 @@ kc_{tk}.setOption({{
     {{ name: 'MACD', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
     {{ name: 'Signal', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_sig)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
     {{ name: 'Hist', type: 'bar', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_hist)}, itemStyle: {{color: function(p){{return {json.dumps(macd_hist_color)}[p.dataIndex];}}}} }},
-    {{ name: 'Z(21日)', type: 'bar', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(z_vals)}, itemStyle: {{color: function(p){{return {json.dumps(z_color)}[p.dataIndex];}}}},
-       markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 2, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}}}, {{yAxis: -2, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }} }},
-    {{ name: 'rMOM', type: 'line', xAxisIndex: 3, yAxisIndex: 5, data: {json.dumps(rmom_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["ma20"]}'}},
-       markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 1, lineStyle: {{color: '{T["ma20"]}', type: 'dashed', width: 0.8}}}}, {{yAxis: 0, lineStyle: {{color: '{T["neutral"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }} }}
+    {{ name: 'rMOM', type: 'bar', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(rmom_vals)}, itemStyle: {{color: function(p){{return {json.dumps(rmom_color)}[p.dataIndex];}}}} }},
+    {{ name: 'Z(21日)', type: 'line', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(z_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["rsi"]}'}},
+       markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 0, lineStyle: {{color: '{T["neutral"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }},
+       markArea: {{ silent: true, data: [
+         [{{yAxis: 2, itemStyle: {{color: 'rgba(255,82,91,.07)'}}}}, {{yAxis: 999}}],
+         [{{yAxis: -999, itemStyle: {{color: 'rgba(34,211,154,.07)'}}}}, {{yAxis: -2}}]
+       ] }} }}
   ]
 }});
 window._klineCharts = window._klineCharts || {{}};

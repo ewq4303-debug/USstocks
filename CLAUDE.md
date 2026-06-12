@@ -9,8 +9,9 @@
   - 總經副圖 (VIX/F&G/10Y/DXY) 共用 `build_macro_axis()` 的交易日軸，缺值留空白
 - 綜合評等、追蹤個股分析（K 線 + MA/Supertrend + 殘差動能 + KD/MACD + 選擇權）
   - 殘差動能（KD 之前的副圖）：`compute_residual_momentum()` 滾動雙因子回歸
-    （SPY + 類股 ETF）剃 Beta 取殘差 ε；左軸 21 日 Z 值柱（±2 參考線）、
-    右軸 rMOM(12-1月) 逐日線（+1/0 參考線），標題顯示 β / R² / α20 / rMOM / 訊號；
+    （SPY + 類股 ETF）剃 Beta 取殘差 ε；單一共用軸：rMOM(12-1月) 柱以顏色編碼門檻
+    （≥+1 綠 / ≤-1 紅 / 中間灰）、21 日 Z 值線 + ±2 淡色陰影區 + 0 軸虛線，
+    標題顯示 β / R² / α20 / rMOM / 訊號；
     防 look-ahead（係數只用 t-1 前資料）、ε 不扣 α̂
   - `write_residual_series_json()` 輸出 `docs/data/series/{TICKER}.json`
     （dates/cum_alpha/ma20/ma60/rolling_alpha/z_short/rmom/price/beta_mkt/r2，NaN→null）
