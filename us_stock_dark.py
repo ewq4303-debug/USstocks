@@ -347,7 +347,7 @@ def get_stock_data(ticker: str, period: str = RM_FETCH_PERIOD):  # 3y: 覆蓋殘
             return None
         df = df[df["Close"] > 0].copy()
         df['SMA_20']  = calculate_sma(df['Close'], 20)
-        df['SMA_50']  = calculate_sma(df['Close'], 50)
+        df['SMA_60']  = calculate_sma(df['Close'], 60)
         df['SMA_200'] = calculate_sma(df['Close'], 200)
         df['RSI_14']  = calculate_rsi(df['Close'], 14)
         df['MACD'], df['MACD_Signal'] = calculate_macd(df['Close'])
@@ -378,7 +378,7 @@ def get_stock_data(ticker: str, period: str = RM_FETCH_PERIOD):  # 3y: 覆蓋殘
                        "high": _f(latest["High"]), "low": _f(latest["Low"]), "open": _f(latest["Open"])},
             "prev": {"close": _f(prev["Close"])},
             "indicators": {
-                "ma20": _f(latest.get("SMA_20")), "ma50": _f(latest.get("SMA_50")), "ma200": _f(latest.get("SMA_200")),
+                "ma20": _f(latest.get("SMA_20")), "ma60": _f(latest.get("SMA_60")), "ma200": _f(latest.get("SMA_200")),
                 "rsi": _f(latest.get("RSI_14"), 50), "macd": _f(latest.get("MACD")), "macd_signal": _f(latest.get("MACD_Signal")),
                 "macd_hist": _f(latest.get("MACD_Hist")), "macd_hist_prev": _f(prev.get("MACD_Hist")),
                 "supertrend": _f(latest.get("ST")), "supertrend_dir": int(latest.get("ST_DIR")) if pd.notna(latest.get("ST_DIR")) else 0,
@@ -823,7 +823,7 @@ def generate_ai_analysis(ticker, name, data, fund, opt):
     prompt = f"""Analyze {ticker} ({name}) for a swing trader. Respond in 繁體中文.
 
 Technical:
-- Price: {latest['close']:.2f} | MA20/50/200: {ind['ma20']:.2f}/{ind['ma50']:.2f}/{ind['ma200']:.2f}
+- Price: {latest['close']:.2f} | MA20/60/200: {ind['ma20']:.2f}/{ind['ma60']:.2f}/{ind['ma200']:.2f}
 - RSI: {ind['rsi']:.1f} | MACD hist: {ind['macd_hist']:+.3f} | Supertrend: {'up' if ind['supertrend_dir']==1 else 'down'}
 - 52W high/low: {ind['high_252']:.2f}/{ind['low_252']:.2f}
 
@@ -861,8 +861,8 @@ def calculate_rating(data, fund, opt):
     ind, latest = data["indicators"], data["latest"]
     close = latest.get("close", 0)
     tech = 0.0
-    if close > ind.get("ma50", 0) > 0: tech += 1.5
-    if ind.get("ma50", 0) > ind.get("ma200", 0) > 0: tech += 2
+    if close > ind.get("ma60", 0) > 0: tech += 1.5
+    if ind.get("ma60", 0) > ind.get("ma200", 0) > 0: tech += 2
     if ind.get("high_252", 0) > 0 and close >= ind.get("high_252", 0) * 0.95: tech += 1.5
     if latest.get("volume", 0) > ind.get("vol_ma20", 0) > 0: tech += 1
     if ind.get("macd_hist", 0) > 0: tech += 2
@@ -1030,7 +1030,7 @@ def generate_stock_card(ticker: str, data: dict, opt: dict, fund: dict) -> str:
 
         <div class="sc-detail">
           {fund_strip}
-          <div id="kline_{ticker}" class="chart-box" style="height:700px;"></div>
+          <div id="kline_{ticker}" class="chart-box" style="height:760px;"></div>
 
           <details class="fold" open>
             <summary>選擇權分析 (Put/Call · IV · Max Pain)</summary>
@@ -1293,7 +1293,7 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
         vol = [int(r["Volume"]) if pd.notna(r["Volume"]) else 0 for _, r in df.iterrows()]
         vol_color = [T["up"] if r["Close"] >= r["Open"] else T["down"] for _, r in df.iterrows()]
         ma20 = [round(v, 2) if pd.notna(v) else None for v in df["SMA_20"].tolist()]
-        ma50 = [round(v, 2) if pd.notna(v) else None for v in df["SMA_50"].tolist()]
+        ma60 = [round(v, 2) if pd.notna(v) else None for v in df["SMA_60"].tolist()]
         ma200 = [round(v, 2) if pd.notna(v) else None for v in df["SMA_200"].tolist()]
         k_vals = [round(v, 2) if pd.notna(v) else None for v in df["K"].tolist()]
         d_vals = [round(v, 2) if pd.notna(v) else None for v in df["D"].tolist()]
@@ -1337,21 +1337,24 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
 var kc_{tk} = echarts.init(document.getElementById('kline_{tk}'));
 kc_{tk}.setOption({{
   title: [
-    {{ text: 'K線 · MA20/50/200 · 成交量', left: '6%', top: '1%', textStyle: {{fontSize: 12, color: '{T["title"]}'}} }},
-    {{ text: '{resid_title}', left: '6%', top: '46%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
-    {{ text: 'KD(14,3,3)', left: '6%', top: '62%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
-    {{ text: 'MACD(12,26,9)', left: '6%', top: '78%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
+    {{ text: 'K線 · 均線 · 成交量', left: '6%', top: '1%', textStyle: {{fontSize: 12, color: '{T["title"]}'}} }},
+    {{ text: '{resid_title}', left: '6%', top: '45%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
+    {{ text: 'KD(14,3,3)', left: '6%', top: '60.5%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
+    {{ text: 'MACD(12,26,9)', left: '6%', top: '76%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
   ],
-  legend: {{ data: ['MA20','MA50','MA200','Supertrend↑','Supertrend↓','K','D'], top: '1%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+  legend: {{ type: 'scroll', data: ['MA20','MA60','MA200','Supertrend↑','Supertrend↓','成交量','α20日年化','Z(21日)','K','D','MACD','Signal','Hist'],
+    selected: {{'MA60': false, 'MA200': false}},
+    top: '1%', left: '32%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8,
+    pageIconColor: '{T["legend"]}', pageIconInactiveColor: '{T["axis_line"]}', pageIconSize: 10, pageTextStyle: {{color: '{T["legend"]}', fontSize: 9}} }},
   tooltip: {{ trigger: 'axis', axisPointer: {{ type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}} }},
     backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1,
     textStyle: {{color: '{T["tooltip_text"]}', fontSize: 12, fontFamily: 'IBM Plex Mono'}} }},
   axisPointer: {{ link: {{xAxisIndex: 'all'}} }},
   grid: [
-    {{ left: '6%', right: '6%', top: '5%', height: '40%' }},
-    {{ left: '6%', right: '6%', top: '65%', height: '11%' }},
-    {{ left: '6%', right: '6%', top: '81%', height: '11%' }},
-    {{ left: '6%', right: '6%', top: '49%', height: '11%' }}
+    {{ left: '6%', right: '6%', top: '6%', height: '36%' }},
+    {{ left: '6%', right: '6%', top: '64%', height: '10.5%' }},
+    {{ left: '6%', right: '6%', top: '79.5%', height: '10.5%' }},
+    {{ left: '6%', right: '6%', top: '48.5%', height: '10.5%' }}
   ],
   xAxis: [
     {{ type: 'category', gridIndex: 0, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
@@ -1380,7 +1383,7 @@ kc_{tk}.setOption({{
          tooltip: {{ trigger: 'item', formatter: function(p){{return p.data.side + ' @ ' + p.data.price + ' × ' + p.data.size + ' 股';}} }},
          data: {mk_json} }} }},
     {{ name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
-    {{ name: 'MA50', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma50)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
+    {{ name: 'MA60', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma60)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
     {{ name: 'MA200', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma200)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma200"]}'}} }},
     {{ name: 'Supertrend↑', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_up)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["up"]}'}} }},
     {{ name: 'Supertrend↓', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_dn)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["down"]}'}} }},
