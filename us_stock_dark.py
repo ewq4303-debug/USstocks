@@ -1124,7 +1124,7 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
                 is_buy = m["side"] == "BUY"
                 mk_data.append({
                     "coord": [label, m["price"]],
-                    "lab": "買" if is_buy else "賣",
+                    "lab": "B" if is_buy else "S",
                     "side": "買進" if is_buy else "賣出",
                     "price": m["price"],
                     "size": m["size"],
@@ -1194,8 +1194,10 @@ kc_{tk}.setOption({{
   ],
   series: [
     {{ name: 'K線', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ohlc)}, itemStyle: {{color: '{T["up"]}', color0: '{T["down"]}', borderColor: '{T["up"]}', borderColor0: '{T["down"]}'}},
-       markPoint: {{ symbol: 'pin', symbolSize: 34, animation: false,
-         label: {{ show: true, color: '#fff', fontSize: 10, fontWeight: 'bold', formatter: function(p){{return p.data.lab;}} }},
+       markPoint: {{ symbol: 'circle', symbolSize: 6, animation: false,
+         label: {{ show: true, position: 'top', distance: 10, color: '#fff', fontSize: 11, fontWeight: 'bold',
+           padding: [2, 4], borderRadius: 3, backgroundColor: 'inherit',
+           formatter: function(p){{return p.data.lab;}} }},
          tooltip: {{ trigger: 'item', formatter: function(p){{return p.data.side + ' @ ' + p.data.price + ' × ' + p.data.size + ' 股';}} }},
          data: {mk_json} }} }},
     {{ name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
@@ -1962,7 +1964,7 @@ def generate_html(stocks_data, options_data, fund_data, md):
     trade_toggle = ('''
         <div class="trade-toggle">
           <label class="tm-switch"><input type="checkbox" id="tmChk" checked onchange="toggleTradeMarkers(this)"> 顯示進出標記</label>
-          <span class="tm-legend"><span class="tm-pin buy">買</span>買進　<span class="tm-pin sell">賣</span>賣出</span>
+          <span class="tm-legend"><span class="tm-pin buy">B</span>買進　<span class="tm-pin sell">S</span>賣出</span>
         </div>''' if has_ibkr else "")
 
     return f"""<!DOCTYPE html>
