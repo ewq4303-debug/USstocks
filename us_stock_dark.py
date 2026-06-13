@@ -291,7 +291,9 @@ def compute_residual_momentum(stock_close: pd.Series, mkt_close: pd.Series, sec_
 
     e = pd.Series(eps, index=cal)
     # 滾動計算: 視窗內剔 NaN，有效樣本低於視窗 70% → NaN
-    rolling_alpha = e.rolling(RM_OSC_WINDOW, min_periods=int(math.ceil(RM_OSC_WINDOW * 0.7))).mean() * 252
+    # rolling_alpha 一律存「每日平均殘差 mean(ε)」(對數報酬)；
+    # 對外顯示統一年化百分比 = mean(ε)×252×100 (標籤「α年化」)。
+    rolling_alpha = e.rolling(RM_OSC_WINDOW, min_periods=int(math.ceil(RM_OSC_WINDOW * 0.7))).mean()
     z_num = e.rolling(RM_Z_SHORT_WINDOW, min_periods=int(math.ceil(RM_Z_SHORT_WINDOW * 0.7))).sum()
     z_den = e.rolling(RM_Z_STD_WINDOW, min_periods=int(math.ceil(RM_Z_STD_WINDOW * 0.7))).std(ddof=1) * math.sqrt(RM_Z_SHORT_WINDOW)
     z_short = z_num / z_den
@@ -377,7 +379,7 @@ def write_residual_series_json(stocks_data, out_dir=f"{OUTPUT_DIR}/data/series")
             "cum_alpha": col(rm["cum_alpha"]),
             "ma20": col(rm["cum_ma20"]),
             "ma60": col(rm["cum_ma60"]),
-            "rolling_alpha": col(rm["rolling_alpha"]),
+            "rolling_alpha": col(rm["rolling_alpha"], 6),  # mean(ε)，年化顯示 ×252×100
             "z_short": col(rm["z_short"]),
             "rmom": col(rm["rmom_series"]),
             "price": col(rm["price"], 2),
@@ -1093,7 +1095,7 @@ def generate_stock_card(ticker: str, data: dict, opt: dict, fund: dict) -> str:
             <span class="kchip" data-tk="{ticker}" data-s="MA200" onclick="toggleKChip(this,event)">MA200<i class="kinfo" onclick="showKInfo(event,'ma')">i</i></span>
             <span class="kchip on" data-tk="{ticker}" data-s="Supertrend↑,Supertrend↓" onclick="toggleKChip(this,event)">Supertrend<i class="kinfo" onclick="showKInfo(event,'st')">i</i></span>
             <span class="kchip on" data-tk="{ticker}" data-s="成交量" onclick="toggleKChip(this,event)">成交量<i class="kinfo" onclick="showKInfo(event,'vol')">i</i></span>
-            <span class="kchip on" data-tk="{ticker}" data-s="Z(21日),rMOM,α20日年化" onclick="toggleKChip(this,event)">殘差動能<i class="kinfo" onclick="showKInfo(event,'resid')">i</i></span>
+            <span class="kchip on" data-tk="{ticker}" data-s="Z(21日),rMOM,α年化" onclick="toggleKChip(this,event)">殘差動能<i class="kinfo" onclick="showKInfo(event,'resid')">i</i></span>
             <span class="kchip on" data-tk="{ticker}" data-s="K,D" onclick="toggleKChip(this,event)">KD<i class="kinfo" onclick="showKInfo(event,'kd')">i</i></span>
             <span class="kchip on" data-tk="{ticker}" data-s="MACD,Signal,Hist" onclick="toggleKChip(this,event)">MACD<i class="kinfo" onclick="showKInfo(event,'macd')">i</i></span>
           </div>
@@ -1397,7 +1399,8 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
             ra_map = {d.date(): v for d, v in resid["rolling_alpha"].items()}
             z_vals = [round(float(z_map[d]), 2) if pd.notna(z_map.get(d)) else None for d in disp_dates]
             rmom_vals = [round(float(rm_map[d]), 2) if pd.notna(rm_map.get(d)) else None for d in disp_dates]
-            ra_vals = [round(float(ra_map[d]), 4) if pd.notna(ra_map.get(d)) else None for d in disp_dates]
+            # 存 mean(ε)，保留 6 位小數使年化 (×252×100) 精度約 ±0.01%
+            ra_vals = [round(float(ra_map[d]), 6) if pd.notna(ra_map.get(d)) else None for d in disp_dates]
             fct = "SPY+" + resid["sector_etf"] if resid.get("sector_etf") else "SPY"
             # 雙因子時兩個 β 都顯示 (順序同 fct)；SPY/類股 ETF 高度共線，
             # β_mkt 單獨看可能為負，必須搭配 β_sec 解讀
@@ -1407,8 +1410,8 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
                 b_txt = f"β {resid['beta_mkt']:.2f}" if pd.notna(resid["beta_mkt"]) else "β -"
             r2_txt = f"R² {resid['r2']:.2f}" if pd.notna(resid["r2"]) else "R² -"
             ra_last = resid["rolling_alpha"].iloc[-1] if len(resid["rolling_alpha"]) else float("nan")
-            # 顯示 20 日累積超額 (年化在事件行情下會放大到誤導，如單日 +28% → 年化 +430%)
-            a_txt = f"α20日 {ra_last*20/252*100:+.1f}%" if pd.notna(ra_last) else "α20日 -"
+            # 統一口徑：年化百分比 = mean(ε)×252×100
+            a_txt = f"α年化 {ra_last*252*100:+.1f}%" if pd.notna(ra_last) else "α年化 -"
             rm_txt = f"rMOM {resid['rmom']:.2f}" if pd.notna(resid["rmom"]) else "rMOM -"
             resid_title = f"殘差動能 vs {fct} · {b_txt} {r2_txt} · {a_txt} · {rm_txt} [{RM_SIGNAL_ZH[resid['signal']]}]"
         ra_color = ["rgba(34,211,154,.45)" if (v is not None and v >= 0) else "rgba(255,82,91,.45)" for v in ra_vals]
@@ -1422,7 +1425,7 @@ kc_{tk}.setOption({{
     {{ text: 'KD(14,3,3)', left: '6%', top: '60.5%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
     {{ text: 'MACD(12,26,9)', left: '6%', top: '76%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
   ],
-  legend: {{ show: false, data: ['MA20','MA60','MA200','Supertrend↑','Supertrend↓','成交量','Z(21日)','rMOM','α20日年化','K','D','MACD','Signal','Hist'],
+  legend: {{ show: false, data: ['MA20','MA60','MA200','Supertrend↑','Supertrend↓','成交量','Z(21日)','rMOM','α年化','K','D','MACD','Signal','Hist'],
     selected: {{'MA60': false, 'MA200': false}} }},
   tooltip: {{ trigger: 'axis', axisPointer: {{ type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}} }},
     backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1,
@@ -1446,7 +1449,7 @@ kc_{tk}.setOption({{
     {{ scale: false, gridIndex: 1, min: 0, max: 100, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     {{ scale: true, gridIndex: 2, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     {{ gridIndex: 3, splitNumber: 2, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{show: false}} }},
-    {{ gridIndex: 3, position: 'right', splitNumber: 2, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return (v*100).toFixed(0)+'%';}}}}, splitLine: {{show: false}} }}
+    {{ gridIndex: 3, position: 'right', splitNumber: 2, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return (v*252*100).toFixed(0)+'%';}}}}, splitLine: {{show: false}} }}
   ],
   dataZoom: [
     {{ type: 'inside', xAxisIndex: [0,1,2,3], start: 40, end: 100 }},
@@ -1472,7 +1475,8 @@ kc_{tk}.setOption({{
     {{ name: 'MACD', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
     {{ name: 'Signal', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_sig)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
     {{ name: 'Hist', type: 'bar', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_hist)}, itemStyle: {{color: function(p){{return {json.dumps(macd_hist_color)}[p.dataIndex];}}}} }},
-    {{ name: 'α20日年化', type: 'bar', xAxisIndex: 3, yAxisIndex: 5, data: {json.dumps(ra_vals)}, itemStyle: {{color: function(p){{return {json.dumps(ra_color)}[p.dataIndex];}}}} }},
+    {{ name: 'α年化', type: 'bar', xAxisIndex: 3, yAxisIndex: 5, data: {json.dumps(ra_vals)}, itemStyle: {{color: function(p){{return {json.dumps(ra_color)}[p.dataIndex];}}}},
+       tooltip: {{ valueFormatter: function(v){{return (v==null)?'-':(v*252*100).toFixed(1)+'%';}} }} }},
     {{ name: 'rMOM', type: 'line', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(rmom_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["ma20"]}'}} }},
     {{ name: 'Z(21日)', type: 'line', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(z_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["rsi"]}'}},
        markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 0, lineStyle: {{color: '{T["neutral"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }},
@@ -2477,7 +2481,7 @@ var KINFO = {{
   vol: {{ t: '成交量', d: '當日成交股數，衡量人氣與動能強弱。', c: '原始成交量柱，綠漲紅跌著色，可疊 20 日均量參考。',
         s: '突破若伴隨爆量較可信；上漲量增、回檔量縮為健康型態；高檔爆量卻滯漲需留意出貨。' }},
   resid: {{ t: '殘差動能 (Residual Momentum)', d: '剃除大盤(SPY)與類股 ETF 兩個 Beta 後的純個股超額報酬 ε，衡量個股不受大盤 / 類股帶動的自身相對強弱。',
-        c: '滾動 252 日雙因子回歸 r=α+β₁·SPY+β₂·類股+ε，取殘差 ε（刻意不扣 α̂，防 look-ahead）。藍線 Z(21日)＝近 21 日 ε 標準化過熱度；琥珀線 rMOM＝12-1 月殘差動能(IR 標準化)；柱＝20 日滾動 α 年化（右軸 %）。',
+        c: '滾動 252 日雙因子回歸 r=α+β₁·SPY+β₂·類股+ε，取殘差 ε（刻意不扣 α̂，防 look-ahead）。藍線 Z(21日)＝近 21 日 ε 標準化過熱度；琥珀線 rMOM＝12-1 月殘差動能(IR 標準化)；柱＝α年化＝20 日滾動 mean(ε)×252×100（右軸 %）。',
         s: 'rMOM>+1 為強勢、<−1 弱勢；強勢股 Z 跌破 −2（下方綠區）為回檔買點（本系統最重要訊號），Z 升破 +2（上方紅區）為短線過熱宜減碼；α 柱由紅轉綠代表近期超額報酬轉正。' }},
   kd: {{ t: 'KD 隨機指標', d: '衡量收盤價在近期高低區間的相對位置，屬擺盪指標，適合判斷超買超賣與轉折。',
         c: 'RSV =(收盤−n日最低)/(n日最高−n日最低)×100，K＝RSV 平滑、D＝K 平滑（參數 14,3,3）。',

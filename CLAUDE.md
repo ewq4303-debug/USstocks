@@ -13,8 +13,9 @@
     彈出定義 / 計算 / 進出判斷依據
   - 殘差動能（KD 之前的副圖）：`compute_residual_momentum()` 滾動雙因子回歸
     （SPY + 類股 ETF）剃 Beta 取殘差 ε；左軸 21 日 Z 值線 + rMOM(12-1月) 線
-    + ±2 淡色陰影區 + 0 軸虛線、右軸 20 日滾動 Alpha 年化柱（半透明分色），
-    標題顯示 β / R² / α20 / rMOM / 訊號；
+    + ±2 淡色陰影區 + 0 軸虛線、右軸「α年化」柱（半透明分色，軸/ tooltip 統一年化 %），
+    標題顯示 β / R² / α年化 / rMOM / 訊號；
+    `rolling_alpha` 內部一律存 mean(ε)，對外顯示一律 mean(ε)×252×100（標籤「α年化」）；
     防 look-ahead（係數只用 t-1 前資料）、ε 不扣 α̂
   - `write_residual_series_json()` 輸出 `docs/data/series/{TICKER}.json`
     （dates/cum_alpha/ma20/ma60/rolling_alpha/z_short/rmom/price/beta_mkt/r2，NaN→null）
