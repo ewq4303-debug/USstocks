@@ -1358,7 +1358,7 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
                     "label": {"position": "top", "distance": 8 if is_buy else 24},
                 })
         mk_json = json.dumps(mk_data, ensure_ascii=False)
-        ohlc = [[float(r["Open"]), float(r["Close"]), float(r["Low"]), float(r["High"])] for _, r in df.iterrows()]
+        ohlc = [[round(float(r["Open"]), 2), round(float(r["Close"]), 2), round(float(r["Low"]), 2), round(float(r["High"]), 2)] for _, r in df.iterrows()]
         vol = [int(r["Volume"]) if pd.notna(r["Volume"]) else 0 for _, r in df.iterrows()]
         vol_color = [T["up"] if r["Close"] >= r["Open"] else T["down"] for _, r in df.iterrows()]
         ma20 = [round(v, 2) if pd.notna(v) else None for v in df["SMA_20"].tolist()]
@@ -1416,6 +1416,22 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
             resid_title = f"殘差動能 vs {fct} · {b_txt} {r2_txt} · {a_txt} · {rm_txt} [{RM_SIGNAL_ZH[resid['signal']]}]"
         ra_color = ["rgba(34,211,154,.45)" if (v is not None and v >= 0) else "rgba(255,82,91,.45)" for v in ra_vals]
 
+        # tooltip 只顯示游標所屬副圖 (grid) 的 series；價格 2 位小數、α年化 %、量千分位。
+        # 以 zrender 記錄游標所在 grid (kc._hg)，formatter 依 axisIndex 過濾。
+        tt_fmt = (
+            "function(ps){var ch=kc___TK__;var g=(ch&&typeof ch._hg==='number')?ch._hg:0;"
+            "var rows=ps.filter(function(p){return p.axisIndex===g;});if(!rows.length)return '';"
+            "function f2(x){return (x==null||x===''||isNaN(x))?'-':Number(x).toFixed(2);}"
+            "var h='<div style=\\'font-size:11px;color:__COL__;margin-bottom:3px\\'>'+(rows[0].axisValueLabel||rows[0].name)+'</div>';"
+            "rows.forEach(function(p){var mk=p.marker||'',nm=p.seriesName,v=p.value;"
+            "if(p.seriesType==='candlestick'){var d=p.value,a=(d&&d.length>=5)?1:0;"
+            "h+=mk+nm+'&nbsp; 開 '+f2(d[a])+'  收 '+f2(d[a+1])+'  低 '+f2(d[a+2])+'  高 '+f2(d[a+3])+'<br>';}"
+            "else if(nm==='\\u03b1\\u5e74\\u5316'){h+=mk+nm+'&nbsp; '+((v==null||isNaN(v))?'-':(v*252*100).toFixed(1)+'%')+'<br>';}"
+            "else if(nm==='\\u6210\\u4ea4\\u91cf'){h+=mk+nm+'&nbsp; '+((v==null)?'-':Number(v).toLocaleString())+'<br>';}"
+            "else{if(Array.isArray(v))v=v[v.length-1];h+=mk+nm+'&nbsp; '+((v==null||v===''||isNaN(v))?'-':v)+'<br>';}});"
+            "return h;}"
+        ).replace("__TK__", tk).replace("__COL__", T["axis_label"])
+
         scripts.append(f"""
 var kc_{tk} = echarts.init(document.getElementById('kline_{tk}'));
 kc_{tk}.setOption({{
@@ -1427,7 +1443,7 @@ kc_{tk}.setOption({{
   ],
   legend: {{ show: false, data: ['MA20','MA60','MA200','Supertrend↑','Supertrend↓','成交量','Z(21日)','rMOM','α年化','K','D','MACD','Signal','Hist'],
     selected: {{'MA60': false, 'MA200': false}} }},
-  tooltip: {{ trigger: 'axis', axisPointer: {{ type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}} }},
+  tooltip: {{ trigger: 'axis', confine: true, formatter: {tt_fmt}, axisPointer: {{ type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}} }},
     backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1,
     textStyle: {{color: '{T["tooltip_text"]}', fontSize: 12, fontFamily: 'IBM Plex Mono'}} }},
   axisPointer: {{ link: {{xAxisIndex: 'all'}} }},
@@ -1475,8 +1491,7 @@ kc_{tk}.setOption({{
     {{ name: 'MACD', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
     {{ name: 'Signal', type: 'line', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_sig)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
     {{ name: 'Hist', type: 'bar', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(macd_hist)}, itemStyle: {{color: function(p){{return {json.dumps(macd_hist_color)}[p.dataIndex];}}}} }},
-    {{ name: 'α年化', type: 'bar', xAxisIndex: 3, yAxisIndex: 5, data: {json.dumps(ra_vals)}, itemStyle: {{color: function(p){{return {json.dumps(ra_color)}[p.dataIndex];}}}},
-       tooltip: {{ valueFormatter: function(v){{return (v==null)?'-':(v*252*100).toFixed(1)+'%';}} }} }},
+    {{ name: 'α年化', type: 'bar', xAxisIndex: 3, yAxisIndex: 5, data: {json.dumps(ra_vals)}, itemStyle: {{color: function(p){{return {json.dumps(ra_color)}[p.dataIndex];}}}} }},
     {{ name: 'rMOM', type: 'line', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(rmom_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["ma20"]}'}} }},
     {{ name: 'Z(21日)', type: 'line', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(z_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["rsi"]}'}},
        markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 0, lineStyle: {{color: '{T["neutral"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }},
@@ -1490,6 +1505,12 @@ window._klineCharts = window._klineCharts || {{}};
 window._klineCharts['{tk}'] = kc_{tk};
 window._tradeMarks = window._tradeMarks || {{}};
 window._tradeMarks['{tk}'] = {mk_json};
+// 記錄游標所在副圖 (grid)，供 tooltip 只顯示該區指標
+kc_{tk}._hg = 0;
+kc_{tk}.getZr().on('mousemove', function(e){{
+  var pt = [e.offsetX, e.offsetY];
+  for (var gi = 0; gi < 4; gi++){{ if (kc_{tk}.containPixel({{gridIndex: gi}}, pt)){{ kc_{tk}._hg = gi; break; }} }}
+}});
 window.addEventListener('resize', function(){{ kc_{tk}.resize(); }});
 """)
 
