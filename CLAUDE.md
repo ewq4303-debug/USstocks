@@ -11,6 +11,9 @@
   - K 線上方自訂指標 chip 列（`toggleKChip`，每指標一鈕整組顯示/隱藏，ECharts 原生
     legend 隱藏改用 `legendSelect/UnSelect` dispatch）；每鈕附 `i` 鈕（`showKInfo`/`KINFO`）
     彈出定義 / 計算 / 進出判斷依據
+  - tooltip 只顯示游標所屬副圖的指標：保留跨圖 crosshair（`axisPointer.link`），
+    以 zrender mousemove + `containPixel` 記錄 `kc._hg`，自訂 formatter 依 `axisIndex`
+    過濾；OHLC 存 2 位小數、α年化以 %、量千分位
   - 殘差動能（KD 之前的副圖）：`compute_residual_momentum()` 滾動雙因子回歸
     （SPY + 類股 ETF）剃 Beta 取殘差 ε；左軸 21 日 Z 值線 + rMOM(12-1月) 線
     + ±2 淡色陰影區 + 0 軸虛線、右軸「α年化」柱（半透明分色，軸/ tooltip 統一年化 %），
