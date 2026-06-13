@@ -1087,6 +1087,16 @@ def generate_stock_card(ticker: str, data: dict, opt: dict, fund: dict) -> str:
 
         <div class="sc-detail">
           {fund_strip}
+          <div class="kchips" data-tk="{ticker}">
+            <span class="kchip on" data-tk="{ticker}" data-s="MA20" onclick="toggleKChip(this,event)">MA20<i class="kinfo" onclick="showKInfo(event,'ma')">i</i></span>
+            <span class="kchip" data-tk="{ticker}" data-s="MA60" onclick="toggleKChip(this,event)">MA60<i class="kinfo" onclick="showKInfo(event,'ma')">i</i></span>
+            <span class="kchip" data-tk="{ticker}" data-s="MA200" onclick="toggleKChip(this,event)">MA200<i class="kinfo" onclick="showKInfo(event,'ma')">i</i></span>
+            <span class="kchip on" data-tk="{ticker}" data-s="Supertrend↑,Supertrend↓" onclick="toggleKChip(this,event)">Supertrend<i class="kinfo" onclick="showKInfo(event,'st')">i</i></span>
+            <span class="kchip on" data-tk="{ticker}" data-s="成交量" onclick="toggleKChip(this,event)">成交量<i class="kinfo" onclick="showKInfo(event,'vol')">i</i></span>
+            <span class="kchip on" data-tk="{ticker}" data-s="Z(21日),rMOM,α20日年化" onclick="toggleKChip(this,event)">殘差動能<i class="kinfo" onclick="showKInfo(event,'resid')">i</i></span>
+            <span class="kchip on" data-tk="{ticker}" data-s="K,D" onclick="toggleKChip(this,event)">KD<i class="kinfo" onclick="showKInfo(event,'kd')">i</i></span>
+            <span class="kchip on" data-tk="{ticker}" data-s="MACD,Signal,Hist" onclick="toggleKChip(this,event)">MACD<i class="kinfo" onclick="showKInfo(event,'macd')">i</i></span>
+          </div>
           <div id="kline_{ticker}" class="chart-box" style="height:760px;"></div>
 
           <details class="fold" open>
@@ -1412,10 +1422,8 @@ kc_{tk}.setOption({{
     {{ text: 'KD(14,3,3)', left: '6%', top: '60.5%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
     {{ text: 'MACD(12,26,9)', left: '6%', top: '76%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
   ],
-  legend: {{ type: 'scroll', data: ['MA20','MA60','MA200','Supertrend↑','Supertrend↓','成交量','Z(21日)','rMOM','α20日年化','K','D','MACD','Signal','Hist'],
-    selected: {{'MA60': false, 'MA200': false}},
-    top: '1%', left: '32%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8,
-    pageIconColor: '{T["legend"]}', pageIconInactiveColor: '{T["axis_line"]}', pageIconSize: 10, pageTextStyle: {{color: '{T["legend"]}', fontSize: 9}} }},
+  legend: {{ show: false, data: ['MA20','MA60','MA200','Supertrend↑','Supertrend↓','成交量','Z(21日)','rMOM','α20日年化','K','D','MACD','Signal','Hist'],
+    selected: {{'MA60': false, 'MA200': false}} }},
   tooltip: {{ trigger: 'axis', axisPointer: {{ type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}} }},
     backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1,
     textStyle: {{color: '{T["tooltip_text"]}', fontSize: 12, fontFamily: 'IBM Plex Mono'}} }},
@@ -1969,6 +1977,23 @@ body{font-family:var(--sans);color:var(--ink);line-height:1.5;padding:20px;min-h
 .chip .dot{width:5px;height:5px;border-radius:50%;background:#3a4658}
 .chip.on .dot{background:var(--up);box-shadow:0 0 4px var(--up)}
 .cnt{font-size:10px;color:var(--ink-3);font-family:var(--mono)}
+/* 個股指標切換 chip（一指標一鈕，整組顯示/隱藏）+ 說明 i 鈕 */
+.kchips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 2px 10px}
+.kchip{display:inline-flex;align-items:center;gap:5px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-3);font-family:inherit;font-size:11px;font-weight:600;padding:4px 9px;border-radius:13px;cursor:pointer;transition:.15s;user-select:none}
+.kchip:hover{border-color:#2b3645;color:var(--ink-2)}
+.kchip.on{background:rgba(77,127,255,.14);border-color:#3a63d8;color:var(--accent-2)}
+.kinfo{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid currentColor;font-size:9px;font-style:normal;font-weight:700;line-height:1;opacity:.6}
+.kinfo:hover{opacity:1;color:#fff;background:var(--accent);border-color:var(--accent)}
+.imodal{position:fixed;inset:0;background:rgba(4,7,12,.66);display:none;align-items:center;justify-content:center;z-index:10000;backdrop-filter:blur(4px);padding:20px}
+.imodal.show{display:flex}
+.imodal-box{background:var(--surface);border:1px solid var(--line);border-radius:14px;max-width:540px;width:100%;padding:22px 24px;box-shadow:var(--shadow);max-height:86vh;overflow:auto}
+.imodal-box h4{font-size:16px;color:var(--ink);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.imodal-box h4 .x{cursor:pointer;color:var(--ink-3);font-weight:400;font-size:20px;line-height:1}
+.imodal-box h4 .x:hover{color:var(--ink)}
+.imodal-row{margin-bottom:13px}
+.imodal-row:last-child{margin-bottom:0}
+.imodal-row .k{font-size:11px;color:var(--accent-2);font-weight:700;letter-spacing:.04em;margin-bottom:4px}
+.imodal-row .v{font-size:13px;color:var(--ink-2);line-height:1.65}
 .stack{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:11px}
 .pane{position:relative;background:transparent}
 .pane+.pane{border-top:1px solid var(--line-2)}
@@ -2269,6 +2294,14 @@ def generate_html(stocks_data, options_data, fund_data, md):
   {holdings_tab_content}
 </div>
 <button id="backToTop" onclick="window.scrollTo({{top:0,behavior:'smooth'}});" style="display:none;position:fixed;bottom:30px;right:30px;background:linear-gradient(135deg,#3a63d8,#4d7fff);color:#fff;border:none;border-radius:50px;padding:10px 18px;cursor:pointer;box-shadow:0 0 18px rgba(77,127,255,.5);z-index:9999;font-weight:bold;font-size:13px">↑ 返回頂部</button>
+<div id="iModal" class="imodal" onclick="if(event.target===this)closeKInfo()">
+  <div class="imodal-box">
+    <h4><span id="iTitle"></span><span class="x" onclick="closeKInfo()">×</span></h4>
+    <div class="imodal-row"><div class="k">定義</div><div class="v" id="iDef"></div></div>
+    <div class="imodal-row"><div class="k">計算</div><div class="v" id="iCalc"></div></div>
+    <div class="imodal-row"><div class="k">進出判斷依據</div><div class="v" id="iSignal"></div></div>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <script>
 var GAS_URL = '{GAS_URL}';
@@ -2420,6 +2453,50 @@ function toggleTradeMarkers(cb){{
         ch.setOption({{ series: [{{ name: 'K線', markPoint: {{ data: data }} }}] }});
     }});
 }}
+
+// 個股 K 線指標切換：一個 chip 控制整組同類 series 顯示/隱藏
+function toggleKChip(el, ev){{
+    if (ev && ev.target && ev.target.classList.contains('kinfo')) return;
+    var tk = el.getAttribute('data-tk');
+    var ch = window._klineCharts && window._klineCharts[tk];
+    if (!ch) return;
+    var on = !el.classList.contains('on');
+    el.classList.toggle('on', on);
+    el.getAttribute('data-s').split(',').forEach(function(name){{
+        ch.dispatchAction({{ type: on ? 'legendSelect' : 'legendUnSelect', name: name }});
+    }});
+}}
+
+// 各指標說明（定義 / 計算 / 進出判斷依據）
+var KINFO = {{
+  ma: {{ t: '移動平均線 MA', d: '收盤價在指定期間的算術平均，反映趨勢方向與成本區。MA20≈月線、MA60≈季線、MA200≈年線。',
+        c: 'MA(n) = 最近 n 日收盤價的簡單平均。', s: '價站上均線且均線上彎偏多；短均上穿長均（黃金交叉）為買進、下穿（死亡交叉）為賣出；跌破年線趨勢轉空。' }},
+  st: {{ t: 'Supertrend 趨勢線', d: '以 ATR 波動度建構的趨勢跟蹤線，判斷多空方向並可作移動停損。',
+        c: '基準 =(最高+最低)/2 ± 倍數×ATR(10)，依收盤突破翻轉方向，預設倍數 3。線翻綠為多、翻紅為空。',
+        s: '收盤站上線翻綠為多單進場 / 續抱，翻紅為出場或翻空；該線本身即移動停損價位。' }},
+  vol: {{ t: '成交量', d: '當日成交股數，衡量人氣與動能強弱。', c: '原始成交量柱，綠漲紅跌著色，可疊 20 日均量參考。',
+        s: '突破若伴隨爆量較可信；上漲量增、回檔量縮為健康型態；高檔爆量卻滯漲需留意出貨。' }},
+  resid: {{ t: '殘差動能 (Residual Momentum)', d: '剃除大盤(SPY)與類股 ETF 兩個 Beta 後的純個股超額報酬 ε，衡量個股不受大盤 / 類股帶動的自身相對強弱。',
+        c: '滾動 252 日雙因子回歸 r=α+β₁·SPY+β₂·類股+ε，取殘差 ε（刻意不扣 α̂，防 look-ahead）。藍線 Z(21日)＝近 21 日 ε 標準化過熱度；琥珀線 rMOM＝12-1 月殘差動能(IR 標準化)；柱＝20 日滾動 α 年化（右軸 %）。',
+        s: 'rMOM>+1 為強勢、<−1 弱勢；強勢股 Z 跌破 −2（下方綠區）為回檔買點（本系統最重要訊號），Z 升破 +2（上方紅區）為短線過熱宜減碼；α 柱由紅轉綠代表近期超額報酬轉正。' }},
+  kd: {{ t: 'KD 隨機指標', d: '衡量收盤價在近期高低區間的相對位置，屬擺盪指標，適合判斷超買超賣與轉折。',
+        c: 'RSV =(收盤−n日最低)/(n日最高−n日最低)×100，K＝RSV 平滑、D＝K 平滑（參數 14,3,3）。',
+        s: 'K 上穿 D 為買、下穿為賣；20 以下超賣、80 以上超買；低檔黃金交叉最佳，高檔死亡交叉宜減碼。' }},
+  macd: {{ t: 'MACD 指數平滑異同移動平均', d: '衡量中期多空動能與趨勢轉折的動能指標。',
+        c: 'DIF=EMA12−EMA26，Signal＝DIF 的 EMA9，柱狀 Hist=DIF−Signal（參數 12,26,9）。',
+        s: 'DIF 上穿 Signal（柱翻正）為買、下穿為賣；柱在 0 軸上方且擴張動能強；高檔價漲而 MACD 不創高（背離）留意轉弱。' }}
+}};
+function showKInfo(ev, key){{
+    ev.stopPropagation();
+    var info = KINFO[key]; if (!info) return;
+    document.getElementById('iTitle').textContent = info.t;
+    document.getElementById('iDef').textContent = info.d;
+    document.getElementById('iCalc').textContent = info.c;
+    document.getElementById('iSignal').textContent = info.s;
+    document.getElementById('iModal').classList.add('show');
+}}
+function closeKInfo(){{ document.getElementById('iModal').classList.remove('show'); }}
+document.addEventListener('keydown', function(e){{ if (e.key === 'Escape') closeKInfo(); }});
 
 window.onscroll = function(){{ document.getElementById('backToTop').style.display = (document.body.scrollTop>400||document.documentElement.scrollTop>400)?'block':'none'; }};
 </script>
