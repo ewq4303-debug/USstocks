@@ -2101,7 +2101,13 @@ body{font-family:var(--sans);color:var(--ink);line-height:1.5;padding:20px;min-h
 .news-item a{font-size:12.5px;font-weight:500;color:var(--ink);text-decoration:none}
 .news-item a:hover{color:var(--accent-2)}
 .app-layout{display:flex;gap:16px;align-items:flex-start}
-.sidebar{width:280px;flex-shrink:0;position:sticky;top:20px;display:flex;flex-direction:column;gap:8px}
+.sidebar{width:280px;flex-shrink:0;position:sticky;top:20px;display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 40px)}
+.sidebar-list{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:6px}
+.sidebar-list::-webkit-scrollbar{width:8px}
+.sidebar-list::-webkit-scrollbar-track{background:transparent}
+.sidebar-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+.sidebar-list::-webkit-scrollbar-thumb:hover{background:#2b3645}
+.sidebar-list{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
 .sidebar-title{font-size:12px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.08em;padding:2px 2px 4px;display:flex;justify-content:space-between;align-items:center}
 .side-add{display:flex;gap:5px}
 .side-add input{width:72px;padding:6px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;font-family:var(--mono);outline:none;background:var(--surface-2);color:var(--ink)}
@@ -2311,7 +2317,7 @@ def generate_html(stocks_data, options_data, fund_data, md):
             <div class="sidebar-title"><span>追蹤清單</span>
                 <div class="side-add"><input type="text" id="stockInput" class="num" placeholder="如 TSLA"><button onclick="manageStock('add',null,'stockInput',this)">新增</button></div>
             </div>
-            {sidebar_items}
+            <div class="sidebar-list">{sidebar_items}</div>
         </div>
         <div class="main-content">{trade_toggle}{stock_cards}</div>
       </div>
