@@ -8,6 +8,9 @@
 - 大盤總覽：指數、VIX、CNN F&G、10Y、DXY、殖利率、類股輪動
   - 總經副圖 (VIX/F&G/10Y/DXY) 共用 `build_macro_axis()` 的交易日軸，缺值留空白
 - 綜合評等、追蹤個股分析（K 線 + MA/Supertrend + 殘差動能 + KD/MACD + 選擇權）
+  - K 線上方自訂指標 chip 列（`toggleKChip`，每指標一鈕整組顯示/隱藏，ECharts 原生
+    legend 隱藏改用 `legendSelect/UnSelect` dispatch）；每鈕附 `i` 鈕（`showKInfo`/`KINFO`）
+    彈出定義 / 計算 / 進出判斷依據
   - 殘差動能（KD 之前的副圖）：`compute_residual_momentum()` 滾動雙因子回歸
     （SPY + 類股 ETF）剃 Beta 取殘差 ε；左軸 21 日 Z 值線 + rMOM(12-1月) 線
     + ±2 淡色陰影區 + 0 軸虛線、右軸 20 日滾動 Alpha 年化柱（半透明分色），
