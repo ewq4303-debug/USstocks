@@ -2173,8 +2173,135 @@ body{font-family:var(--sans);color:var(--ink);line-height:1.5;padding:20px;min-h
 }
 """
 
-def generate_holdings_section(ibkr):
-    """IBKR 持股明細頁：帳戶總覽 + 持股表"""
+def build_alloc_data(positions, top_n=14):
+    """持倉比例圓餅資料：依市值由大到小，超過 top_n 檔者併為「其他」。"""
+    items = sorted(
+        [{"name": p.get("symbol", ""), "value": round(float(p.get("market_value", 0) or 0), 2)}
+         for p in positions if (p.get("market_value", 0) or 0) > 0],
+        key=lambda x: x["value"], reverse=True)
+    if len(items) > top_n:
+        head = items[:top_n]
+        other = round(sum(x["value"] for x in items[top_n:]), 2)
+        head.append({"name": "其他", "value": other})
+        return head
+    return items
+
+def compute_portfolio_history(ibkr, period="6mo"):
+    """以「目前持股數量」回溯估值，計算每日持股淨值 (Σ qty×close) 與 S&P 500 的累積報酬對比。
+    注意：快照無帳戶歷史淨值，故以目前持股回溯估值，非實際歷史淨值 (未計入期間進出與現金)。"""
+    positions = ibkr.get("positions", [])
+    if not positions:
+        return None
+    closes = {}
+    for p in positions:
+        sym = p.get("symbol", "")
+        qty = p.get("position", 0) or 0
+        if not sym or qty == 0:
+            continue
+        try:
+            df = yf.Ticker(sym).history(period=period)
+            if df is None or df.empty:
+                continue
+            s = df["Close"].dropna()
+            if not s.empty:
+                s.index = s.index.tz_localize(None)
+                closes[sym] = s * qty
+        except Exception:
+            continue
+    if not closes:
+        return None
+    aligned = pd.concat(closes, axis=1).dropna()
+    if len(aligned) < 2:
+        return None
+    port = aligned.sum(axis=1)
+    try:
+        spy = yf.Ticker("^GSPC").history(period=period)["Close"].dropna()
+        spy.index = spy.index.tz_localize(None)
+    except Exception:
+        spy = None
+    dates = [d.strftime("%m-%d") for d in port.index]
+    base_p = float(port.iloc[0]) or 1.0
+    value = [round(float(v), 2) for v in port.values]
+    port_pct = [round((float(v) / base_p - 1) * 100, 2) for v in port.values]
+    spy_pct = [None] * len(dates)
+    if spy is not None and not spy.empty:
+        spy_al = spy.reindex(port.index).ffill().bfill()
+        base_s = next((float(v) for v in spy_al.values if pd.notna(v)), None)
+        if base_s:
+            spy_pct = [round((float(v) / base_s - 1) * 100, 2) if pd.notna(v) else None
+                       for v in spy_al.values]
+    return {"dates": dates, "value": value, "port_pct": port_pct, "spy_pct": spy_pct,
+            "alloc": build_alloc_data(positions)}
+
+def generate_holdings_chart_script(port_hist, alloc):
+    """持股明細頁圖表 JS：(1) 每日持股淨值 vs S&P 500 折線 (2) 持倉比例圓餅。"""
+    T = THEME
+    if not port_hist and not alloc:
+        return ""
+    palette = ["#6f9bff", "#22d39a", "#ff8a6b", "#e0a83c", "#b07bff", "#ff525b",
+               "#5fd3ff", "#8ec63f", "#f0c060", "#ff6bb5", "#4d7fff", "#22d39a",
+               "#ff8a6b", "#b07bff", "#8b95a5"]
+    js = []
+    if port_hist:
+        last_pct = next((v for v in reversed(port_hist["port_pct"]) if v is not None), 0)
+        last_spy = next((v for v in reversed(port_hist["spy_pct"]) if v is not None), None)
+        last_val = port_hist["value"][-1] if port_hist["value"] else 0
+        title = (f"持股淨值 ${last_val:,.0f} · 近 {len(port_hist['dates'])} 交易日 {last_pct:+.2f}%"
+                 + (f" · S&P {last_spy:+.2f}%" if last_spy is not None else ""))
+        js.append(f"""
+window._holdNav = {json.dumps(port_hist)};
+(function(){{
+  var el = document.getElementById('holdings_nav_chart');
+  if (!el) return;
+  var nc = echarts.init(el);
+  nc.setOption({{
+    title: {{ text: {json.dumps(title)}, left: '6%', top: '3%', textStyle: {{fontSize: 12, color: '{T["title"]}', fontWeight: 700, fontFamily: 'IBM Plex Mono'}} }},
+    legend: {{ data: ['持股淨值','S&P 500'], top: '4%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+    tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}},
+      formatter: function(ps){{
+        if (!ps || !ps.length) return '';
+        var i = ps[0].dataIndex, d = window._holdNav;
+        var s = d.dates[i] + '<br/>持股淨值 $' + (d.value[i]||0).toLocaleString(undefined,{{maximumFractionDigits:0}}) + '<br/>';
+        for (var k=0;k<ps.length;k++) {{ var v = ps[k].value; s += ps[k].marker + ps[k].seriesName + ': ' + (v==null?'-':v.toFixed(2)+'%') + '<br/>'; }}
+        return s;
+      }} }},
+    grid: {{ left: '7%', right: '6%', top: '20%', bottom: '12%' }},
+    xAxis: {{ type: 'category', data: {json.dumps(port_hist["dates"])}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+    yAxis: {{ type: 'value', scale: true, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLine: {{show: false}} }},
+    dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
+    series: [
+      {{ name: '持股淨值', type: 'line', data: {json.dumps(port_hist["port_pct"])}, smooth: true, showSymbol: false, connectNulls: true, lineStyle: {{width: 2, color: '{T["up"]}'}}, itemStyle: {{color: '{T["up"]}'}}, areaStyle: {{color: 'rgba(34,211,154,0.10)'}} }},
+      {{ name: 'S&P 500', type: 'line', data: {json.dumps(port_hist["spy_pct"])}, smooth: true, showSymbol: false, connectNulls: true, lineStyle: {{width: 1.6, color: '{T["rsi"]}'}}, itemStyle: {{color: '{T["rsi"]}'}} }}
+    ]
+  }});
+  window.addEventListener('resize', function(){{ nc.resize(); }});
+}})();
+""")
+    if alloc:
+        js.append(f"""
+(function(){{
+  var el = document.getElementById('holdings_alloc_chart');
+  if (!el) return;
+  var ac = echarts.init(el);
+  ac.setOption({{
+    title: {{ text: '持倉比例', left: '6%', top: '3%', textStyle: {{fontSize: 12, color: '{T["title"]}', fontWeight: 700, fontFamily: 'IBM Plex Mono'}} }},
+    tooltip: {{ trigger: 'item', backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}},
+      formatter: function(p){{ return p.name + ': <b>$' + (p.value||0).toLocaleString(undefined,{{maximumFractionDigits:0}}) + '</b> (' + p.percent + '%)'; }} }},
+    legend: {{ type: 'scroll', orient: 'vertical', right: '3%', top: 'middle', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 10, itemHeight: 8 }},
+    color: {json.dumps(palette)},
+    series: [{{ name: '持倉比例', type: 'pie', radius: ['42%','70%'], center: ['38%','55%'], avoidLabelOverlap: true,
+      itemStyle: {{ borderColor: '#0a0e15', borderWidth: 2 }},
+      label: {{ show: false }}, labelLine: {{ show: false }},
+      emphasis: {{ label: {{ show: true, fontSize: 13, fontWeight: 700, color: '{T["tooltip_text"]}', formatter: '{{b}}\\n{{d}}%' }} }},
+      data: {json.dumps(alloc, ensure_ascii=False)} }}]
+  }});
+  window.addEventListener('resize', function(){{ ac.resize(); }});
+}})();
+""")
+    return "\n".join(js)
+
+def generate_holdings_section(ibkr, has_hist=False):
+    """IBKR 持股明細頁：帳戶總覽 + 圖表 + 持股表"""
     positions = sorted(ibkr.get("positions", []),
                        key=lambda p: p.get("market_value", 0), reverse=True)
     summ = ibkr.get("summary", {})
@@ -2231,8 +2358,25 @@ def generate_holdings_section(ibkr):
         f'<td class="{total_cls}">{total_ret:+.2f}%</td></tr>'
     )
 
+    nav_card = (f"""
+    <div class="card holdings-chart-card" style="flex:2 1 420px;min-width:300px">
+      <div id="holdings_nav_chart" class="chart-box" style="height:320px;background:transparent;border:none"></div>
+      <div style="font-size:11px;color:var(--ink-3);margin-top:6px;line-height:1.6">
+        以「目前持股數量」回溯估值的每日持股淨值 (Σ 股數×收盤)，與 S&amp;P 500 同期累積報酬對比；
+        非帳戶實際歷史淨值 (未計入期間進出與現金)。
+      </div>
+    </div>""" if has_hist else "")
+    charts_row = f"""
+    <div class="holdings-charts" style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px">
+      {nav_card}
+      <div class="card holdings-chart-card" style="flex:1 1 320px;min-width:280px">
+        <div id="holdings_alloc_chart" class="chart-box" style="height:320px;background:transparent;border:none"></div>
+      </div>
+    </div>"""
+
     return f"""<div class="section-head"><span class="eyebrow">IBKR Portfolio</span><h2>持股明細</h2></div>
     <div class="metrics metrics-4">{cards}</div>
+    {charts_row}
     <div class="card">
       <div class="card-title"><span>持股部位</span>
         <span style="font-size:11px;color:var(--ink-3);font-weight:500">資料快照 {fetched}</span></div>
@@ -2256,7 +2400,11 @@ def generate_html(stocks_data, options_data, fund_data, md):
     ibkr = load_ibkr_data()
     trade_markers = build_trade_markers(ibkr)
     has_ibkr = bool(ibkr.get("positions"))
-    holdings_section = generate_holdings_section(ibkr) if has_ibkr else ""
+    port_hist = compute_portfolio_history(ibkr) if has_ibkr else None
+    holdings_section = generate_holdings_section(ibkr, bool(port_hist)) if has_ibkr else ""
+    holdings_chart_script = (
+        generate_holdings_chart_script(port_hist, build_alloc_data(ibkr.get("positions", [])))
+        if has_ibkr else "")
 
     sidebar_items, stock_cards = "", ""
     first = True
@@ -2340,6 +2488,7 @@ def generate_html(stocks_data, options_data, fund_data, md):
 var GAS_URL = '{GAS_URL}';
 var TRIGGER_URL = '{TRIGGER_URL}';
 {chart_scripts}
+{holdings_chart_script}
 
 function resizeAllCharts(){{ setTimeout(function(){{ window.dispatchEvent(new Event('resize')); }}, 50); }}
 
