@@ -2102,6 +2102,8 @@ body{font-family:var(--sans);color:var(--ink);line-height:1.5;padding:20px;min-h
 .news-item a:hover{color:var(--accent-2)}
 .app-layout{display:flex;gap:16px;align-items:flex-start}
 .sidebar{width:280px;flex-shrink:0;position:sticky;top:20px;display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 40px)}
+/* 提高特異度，避免被後面的 .desktop-only{display:block} 蓋掉 flex 版面 (手機端仍由 !important 隱藏) */
+.sidebar.desktop-only{display:flex}
 .sidebar-list{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:6px}
 .sidebar-list::-webkit-scrollbar{width:8px}
 .sidebar-list::-webkit-scrollbar-track{background:transparent}
