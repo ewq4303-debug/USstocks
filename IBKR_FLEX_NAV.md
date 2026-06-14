@@ -141,14 +141,16 @@ GET {Url}?t={TOKEN}&q={REFERENCE_CODE}&v=3
   "account_id": "U1234567",
   "currency": "USD",
   "series": [
-    { "date": "2026-06-12", "nav": 123456.78 },
-    { "date": "2026-06-13", "nav": 124001.22 }
+    { "date": "2026-06-12", "nav": 123456.78, "cash": 7401.63 },
+    { "date": "2026-06-13", "nav": 124001.22, "cash": 6800.10 }
   ]
 }
 ```
 
 - `series` 依日期升冪排序。
 - ECharts 直接吃 `[date, nav]`,可在前端 map 成 `series.map(d => [d.date, d.nav])`。
+- `cash` 為當日現金 (EquitySummary 的 `cash` 欄位),供畫「持倉比例 = 1 − cash/nav」折線;
+  若報表只有 Change in NAV (無逐日現金),該日省略 `cash`,折線該段留空白。
 
 ---
 
