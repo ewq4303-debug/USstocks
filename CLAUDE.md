@@ -24,10 +24,13 @@
     （dates/cum_alpha/ma20/ma60/rolling_alpha/z_short/rmom/price/beta_mkt/r2，NaN→null）
 - 持股明細：讀 `ibkr_data.json` 顯示 IBKR 帳戶總覽與持股表
   - 每日帳戶淨值 vs S&P 500 折線（`compute_portfolio_history()` 讀 `nav_history.json` 的
-    真實每日 NAV，與 SPX 同期累積報酬 % 對比；IBKR 無歷史 NAV 端點故由每日快照累積，
-    早期未累積區間留空白不回溯估值，需 ≥2 個交易日才畫，`connectNulls:false`）
-  - `nav_history.json`：每日帳戶淨值累積檔 `[{date, net_liq}]`，由 `build_ibkr_snapshot.py`
-    的 `update_nav_history()` 在每日刷新時 append（同日去重覆寫）
+    真實每日 NAV，與 SPX 同期累積報酬 % 對比；IBKR 無歷史 NAV 端點故由 Flex Web Service
+    每日累積，早期未累積區間留空白不回溯估值，需 ≥2 個交易日才畫，`connectNulls:false`）
+  - `nav_history.json`：每日帳戶淨值累積檔 `{updated_at, account_id, currency, series:[{date, nav}]}`，
+    由 `fetch_ibkr_nav.py` 經 IBKR Flex Web Service 每日 append（同日去重，series 依日期升冪）
+  - `fetch_ibkr_nav.py`：Flex Web Service NAV 抓取器（SendRequest→GetStatement 兩段式，
+    重試 1019 等暫時性錯誤、致命錯誤 1012/1015 直接 fail）；規格見 `IBKR_FLEX_NAV.md`。
+    GitHub Actions 用 secrets `IBKR_FLEX_TOKEN` / `IBKR_FLEX_QUERY_ID`，於建置前 best-effort 執行
   - 持倉比例圓餅（`build_alloc_data()`，依市值排序，超過前 14 檔併為「其他」）
   - 圖表 JS 由 `generate_holdings_chart_script()` 產生，div 隱藏於分頁，靠 `switchTab` 的
     `resizeAllCharts` 觸發 resize
