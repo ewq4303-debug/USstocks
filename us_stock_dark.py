@@ -88,19 +88,32 @@ RM_SIGNAL_ZH = {
 # (GitHub Actions 排程建置環境無法直連券商，故採快照檔)
 # =========================================================
 IBKR_DATA_FILE = "ibkr_data.json"
-NAV_HISTORY_FILE = "nav_history.json"  # 每日帳戶淨值累積檔 (由 build_ibkr_snapshot.py 累積)
+NAV_HISTORY_FILE = "nav_history.json"  # 每日帳戶淨值累積檔 (由 fetch_ibkr_nav.py 經 Flex Web Service 累積)
 
 def load_nav_history():
-    """讀取每日帳戶淨值累積檔 [{date, net_liq}, ...]，無檔則回空 list。"""
+    """讀取每日帳戶淨值累積檔，回傳 [{date, nav}, ...] (依日期升冪)，無檔則回空 list。
+
+    相容新格式 {"series":[{date,nav}]} 與舊格式 [{date,net_liq}]。"""
     if not os.path.exists(NAV_HISTORY_FILE):
         return []
     try:
         with open(NAV_HISTORY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return data if isinstance(data, list) else []
     except Exception as e:
         print(f"  ⚠️ 讀取 NAV 歷史失敗: {e}")
         return []
+    rows = data.get("series", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+    out = []
+    for r in rows:
+        d = r.get("date")
+        v = r.get("nav", r.get("net_liq"))
+        if d and v is not None:
+            try:
+                out.append({"date": d, "nav": float(v)})
+            except (TypeError, ValueError):
+                continue
+    out.sort(key=lambda x: x["date"])
+    return out
 
 def load_ibkr_data():
     if not os.path.exists(IBKR_DATA_FILE):
@@ -2202,15 +2215,11 @@ def build_alloc_data(positions, top_n=14):
 def compute_portfolio_history(ibkr):
     """每日帳戶淨值 (真實 NAV，由每日快照累積於 nav_history.json) 與 S&P 500 的累積報酬對比。
     早期尚未累積到真實資料的區間留空白，不做回溯估值。需 ≥2 個交易日才畫圖。"""
-    hist = load_nav_history()
-    pts = sorted(
-        [{"date": h["date"], "net_liq": float(h["net_liq"])}
-         for h in hist if h.get("date") and h.get("net_liq") is not None],
-        key=lambda x: x["date"])
+    pts = load_nav_history()  # 已正規化為 [{date, nav}] 且依日期升冪
     if len(pts) < 2:
         return None
     dates_full = [p["date"] for p in pts]            # YYYY-MM-DD
-    value = [round(p["net_liq"], 2) for p in pts]
+    value = [round(p["nav"], 2) for p in pts]
     base_p = value[0] or 1.0
     port_pct = [round((v / base_p - 1) * 100, 2) for v in value]
     # S&P 500 對齊到 NAV 的日期 (非交易日 ffill 取前一交易日)
@@ -2359,7 +2368,7 @@ def generate_holdings_section(ibkr, has_hist=False):
     <div class="card holdings-chart-card" style="flex:2 1 420px;min-width:300px">
       <div id="holdings_nav_chart" class="chart-box" style="height:320px;background:transparent;border:none"></div>
       <div style="font-size:11px;color:var(--ink-3);margin-top:6px;line-height:1.6">
-        每日帳戶淨值 (IBKR net liquidation，由每日快照累積)，與 S&amp;P 500 同期累積報酬 (%) 對比；
+        每日帳戶淨值 (IBKR Flex Web Service 的日終 NAV，每日累積)，與 S&amp;P 500 同期累積報酬 (%) 對比；
         尚未累積到真實資料的早期區間留空白，不做回溯估值。
       </div>
     </div>""" if has_hist else "")
