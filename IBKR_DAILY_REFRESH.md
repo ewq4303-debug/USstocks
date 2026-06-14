@@ -26,10 +26,13 @@ Session 需具備：①IBKR MCP 已連線　②repo 寫入權限（push 到 `mai
      --positions positions.json --trades trades.json --summary summary.json
    # 或：python build_ibkr_snapshot.py --raw raw.json
    ```
-   產出 `ibkr_data.json`（含 `fetched_at` 時間戳）。
-4. 提交並推送到 **main**（網站建置讀取 main 的 `ibkr_data.json`）：
+   產出 `ibkr_data.json`（含 `fetched_at` 時間戳），並把當日帳戶淨值
+   （`summary.net_liquidation`）累積一筆到 `nav_history.json`（同一天去重覆寫），
+   供儀表板畫「每日帳戶淨值 vs S&P 500」。NAV 曲線只能由此每日累積（IBKR 無歷史 NAV 端點），
+   早期未累積的區間在圖上留空白、不做回溯估值。
+4. 提交並推送到 **main**（網站建置讀取 main 的 `ibkr_data.json` 與 `nav_history.json`）：
    ```bash
-   git add ibkr_data.json
+   git add ibkr_data.json nav_history.json
    git commit -m "chore: refresh IBKR snapshot ($(date -u +%F))"
    git push
    ```
@@ -42,5 +45,7 @@ python -c "import json;d=json.load(open('ibkr_data.json'));print(d['fetched_at']
 
 ## 注意
 - 只有股票/ETF (STK) 會被保留；已清空的部位不在 positions，但其賣出交易仍會在圖上標記。
+- `nav_history.json` 每天每個交易日只記一筆（同日覆寫）；需 ≥2 個交易日圖才會顯示。
+  漏跑某天就少一個點，那段在圖上自然留空白（`connectNulls:false`）。
 - `build_ibkr_snapshot.py` 只是「轉換器」：它**不**連 IBKR，原始資料一律由 Claude 用 MCP 取得後餵給它。
 - 快照是某個時間點的靜態檔；網頁上的「資料快照 {fetched_at}」會顯示最後更新時間，方便判斷新鮮度。

@@ -109,6 +109,32 @@ def _load(path):
         return json.load(f)
 
 
+def update_nav_history(snap, path="nav_history.json"):
+    """把當日帳戶淨值 (net_liquidation) 累積到 nav_history.json (同一天去重覆寫)。
+    供儀表板畫『每日帳戶淨值 vs S&P 500』；早期未累積的區間留空白，不做回溯估值。"""
+    net_liq = (snap.get("summary") or {}).get("net_liquidation")
+    if net_liq is None:
+        print("  ⚠️ summary 無 net_liquidation，略過 NAV 累積")
+        return None
+    date = (snap.get("fetched_at") or "")[:10]
+    if not date or len(date) != 10:
+        date = datetime.now(ET).strftime("%Y-%m-%d")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            hist = json.load(f)
+        if not isinstance(hist, list):
+            hist = []
+    except (FileNotFoundError, json.JSONDecodeError):
+        hist = []
+    hist = [h for h in hist if h.get("date") != date]  # 同日覆寫
+    hist.append({"date": date, "net_liq": _num(net_liq)})
+    hist.sort(key=lambda x: x.get("date") or "")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(hist, f, ensure_ascii=False, indent=2)
+    print(f"✓ {path}: 累積 {len(hist)} 個交易日 NAV (今日 {date} = {_num(net_liq)})")
+    return hist
+
+
 def main():
     ap = argparse.ArgumentParser(description="Build ibkr_data.json snapshot from IBKR API responses")
     ap.add_argument("--positions")
@@ -116,6 +142,8 @@ def main():
     ap.add_argument("--summary")
     ap.add_argument("--raw", help="single file containing positions/trades/summary")
     ap.add_argument("--out", default="ibkr_data.json")
+    ap.add_argument("--nav-history", default="nav_history.json",
+                    help="每日帳戶淨值累積檔 (同日去重)；設為空字串可停用")
     ap.add_argument("--fetched-at", default=None)
     args = ap.parse_args()
 
@@ -136,6 +164,8 @@ def main():
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(snap, f, ensure_ascii=False, indent=2)
     print(f"✓ {args.out}: {len(snap['positions'])} 持股, {len(snap['trades'])} 筆交易, 快照時間 {snap['fetched_at']}")
+    if args.nav_history:
+        update_nav_history(snap, args.nav_history)
 
 
 if __name__ == "__main__":
