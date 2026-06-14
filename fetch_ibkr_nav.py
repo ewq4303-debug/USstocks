@@ -102,10 +102,10 @@ def get_statement(url, token, reference_code, max_retries=5, base_sleep=6, timeo
 
 
 def parse_nav_rows(xml_text):
-    """從報表 XML 取出 (account_id, currency, [{date, nav}, ...])。
+    """從報表 XML 取出 (account_id, currency, [{date, nav, cash?}, ...])。
 
-    優先用 EquitySummaryByReportDateInBase / EquitySummaryInBase 的逐日 total (支援策略 B 回補)，
-    否則退回 Change in NAV section 的 endingValue (策略 A 單日)。
+    優先用 EquitySummaryByReportDateInBase / EquitySummaryInBase 的逐日 total + cash
+    (支援策略 B 回補與『持倉比例 = 1 − 現金/NAV』折線)，否則退回 Change in NAV 的 endingValue。
     """
     root = ET.fromstring(xml_text)
     if root.tag != "FlexQueryResponse":
@@ -116,7 +116,7 @@ def parse_nav_rows(xml_text):
     currency = None
     rows = {}
 
-    # (1) 逐日權益彙總 → 每個交易日一列 NAV
+    # (1) 逐日權益彙總 → 每個交易日一列 NAV (total) 與現金 (cash)
     for tag in ("EquitySummaryByReportDateInBase", "EquitySummaryInBase"):
         for el in root.iter(tag):
             date = _norm_date(el.get("reportDate") or el.get("date"))
@@ -124,13 +124,17 @@ def parse_nav_rows(xml_text):
             currency = currency or el.get("currency")
             if date and total:
                 try:
-                    rows[date] = float(total)
+                    rec = {"nav": float(total)}
+                    cash = el.get("cash")
+                    if cash not in (None, ""):
+                        rec["cash"] = float(cash)
+                    rows[date] = rec
                 except ValueError:
                     pass
         if rows:
             break
 
-    # (2) 退回 Change in NAV 的 Ending NAV (單日)
+    # (2) 退回 Change in NAV 的 Ending NAV (單日，無現金資訊)
     if not rows:
         stmt_to = stmt.get("toDate") if stmt is not None else None
         for el in root.iter("ChangeInNAV"):
@@ -141,11 +145,16 @@ def parse_nav_rows(xml_text):
             currency = currency or el.get("currency")
             if date:
                 try:
-                    rows[date] = float(ev)
+                    rows[date] = {"nav": float(ev)}
                 except ValueError:
                     pass
 
-    series = [{"date": d, "nav": round(v, 2)} for d, v in sorted(rows.items())]
+    series = []
+    for d in sorted(rows):
+        rec = {"date": d, "nav": round(rows[d]["nav"], 2)}
+        if "cash" in rows[d]:
+            rec["cash"] = round(rows[d]["cash"], 2)
+        series.append(rec)
     return account_id, (currency or "USD"), series
 
 
@@ -164,13 +173,27 @@ def _load_existing(path):
 
 
 def merge_and_write(path, account_id, currency, new_rows):
-    """把新抓到的 {date,nav} 併入累積檔 (同日覆寫，冪等)，依日期升冪寫回。"""
+    """把新抓到的 {date,nav,cash?} 併入累積檔 (同日逐欄覆寫，冪等)，依日期升冪寫回。"""
     existing = _load_existing(path)
-    bydate = {r["date"]: r["nav"] for r in existing.get("series", [])
-              if r.get("date") and r.get("nav") is not None}
+    bydate = {}
+    for r in existing.get("series", []):
+        if r.get("date") and r.get("nav") is not None:
+            rec = {"nav": r["nav"]}
+            if r.get("cash") is not None:
+                rec["cash"] = r["cash"]
+            bydate[r["date"]] = rec
     for r in new_rows:
-        bydate[r["date"]] = r["nav"]  # 覆寫
-    series = [{"date": d, "nav": bydate[d]} for d in sorted(bydate)]
+        cur = bydate.get(r["date"], {})
+        cur["nav"] = r["nav"]            # NAV 一律更新
+        if r.get("cash") is not None:    # 現金僅在新資料有值時更新 (不抹掉舊值)
+            cur["cash"] = r["cash"]
+        bydate[r["date"]] = cur
+    series = []
+    for d in sorted(bydate):
+        rec = {"date": d, "nav": bydate[d]["nav"]}
+        if "cash" in bydate[d]:
+            rec["cash"] = bydate[d]["cash"]
+        series.append(rec)
     out = {
         "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "account_id": account_id or existing.get("account_id"),

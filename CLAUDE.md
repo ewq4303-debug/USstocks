@@ -23,15 +23,19 @@
   - `write_residual_series_json()` 輸出 `docs/data/series/{TICKER}.json`
     （dates/cum_alpha/ma20/ma60/rolling_alpha/z_short/rmom/price/beta_mkt/r2，NaN→null）
 - 持股明細：讀 `ibkr_data.json` 顯示 IBKR 帳戶總覽與持股表
-  - 每日帳戶淨值 vs S&P 500 折線（`compute_portfolio_history()` 讀 `nav_history.json` 的
-    真實每日 NAV，與 SPX 同期累積報酬 % 對比；IBKR 無歷史 NAV 端點故由 Flex Web Service
-    每日累積，早期未累積區間留空白不回溯估值，需 ≥2 個交易日才畫，`connectNulls:false`）
-  - `nav_history.json`：每日帳戶淨值累積檔 `{updated_at, account_id, currency, series:[{date, nav}]}`，
-    由 `fetch_ibkr_nav.py` 經 IBKR Flex Web Service 每日 append（同日去重，series 依日期升冪）
+  - 帳戶淨值 vs S&P 500 折線（`compute_portfolio_history()` 讀 `nav_history.json` 真實每日 NAV，
+    從有記錄第一天起，兩線皆取**累積對數報酬** 100·ln(Vt/V0)（`_cum_ln`，起點 0）；IBKR 無歷史
+    NAV 端點故由 Flex Web Service 每日累積，早期未累積區間留空白不回溯估值，需 ≥2 交易日才畫，
+    `connectNulls:false`）
+  - 持倉比例(1−現金) 折線（`pos_ratio = 1 − cash/nav`，逐日 cash 來自 Flex 報表；需 ≥2 個有 cash
+    的交易日才畫，無 cash 的日子留空白）
+  - `nav_history.json`：每日帳戶淨值累積檔 `{updated_at, account_id, currency, series:[{date, nav, cash?}]}`，
+    由 `fetch_ibkr_nav.py` 經 IBKR Flex Web Service 每日 append（同日逐欄覆寫，series 依日期升冪）
   - `fetch_ibkr_nav.py`：Flex Web Service NAV 抓取器（SendRequest→GetStatement 兩段式，
-    重試 1019 等暫時性錯誤、致命錯誤 1012/1015 直接 fail）；規格見 `IBKR_FLEX_NAV.md`。
+    重試 1019 等暫時性錯誤、致命錯誤 1012/1015 直接 fail）；解析 EquitySummary 逐日 total+cash，
+    退回 ChangeInNAV endingValue。規格見 `IBKR_FLEX_NAV.md`。
     GitHub Actions 用 secrets `IBKR_FLEX_TOKEN` / `IBKR_FLEX_QUERY_ID`，於建置前 best-effort 執行
-  - 持倉比例圓餅（`build_alloc_data()`，依市值排序，超過前 14 檔併為「其他」）
+  - 持倉配置圓餅（`build_alloc_data()`，依市值排序，超過前 14 檔併為「其他」）
   - 圖表 JS 由 `generate_holdings_chart_script()` 產生，div 隱藏於分頁，靠 `switchTab` 的
     `resizeAllCharts` 觸發 resize
 - K 線進出標記：依 `ibkr_data.json` 的交易，按「每日×方向」VWAP 標在圖上，可勾選顯示/隱藏

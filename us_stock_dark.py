@@ -109,7 +109,11 @@ def load_nav_history():
         v = r.get("nav", r.get("net_liq"))
         if d and v is not None:
             try:
-                out.append({"date": d, "nav": float(v)})
+                rec = {"date": d, "nav": float(v)}
+                c = r.get("cash")
+                if c is not None:
+                    rec["cash"] = float(c)
+                out.append(rec)
             except (TypeError, ValueError):
                 continue
     out.sort(key=lambda x: x["date"])
@@ -2212,18 +2216,27 @@ def build_alloc_data(positions, top_n=14):
         return head
     return items
 
+def _cum_ln(v, base):
+    """累積對數報酬 (%): 100·ln(v/base)，起點為 0；無效值回 None。"""
+    try:
+        return round(math.log(v / base) * 100, 2) if (v and base and v > 0 and base > 0) else None
+    except (ValueError, ZeroDivisionError, TypeError):
+        return None
+
 def compute_portfolio_history(ibkr):
-    """每日帳戶淨值 (真實 NAV，由每日快照累積於 nav_history.json) 與 S&P 500 的累積報酬對比。
-    早期尚未累積到真實資料的區間留空白，不做回溯估值。需 ≥2 個交易日才畫圖。"""
-    pts = load_nav_history()  # 已正規化為 [{date, nav}] 且依日期升冪
+    """每日帳戶淨值 (真實 NAV，由 nav_history.json 累積) 與 S&P 500 的對比，從有記錄那天起畫。
+    報酬一律取對數 (累積對數報酬 = 100·ln(Vt/V0))，兩條線起點皆為 0。
+    另算『持倉比例 = 1 − 現金/NAV』時間序列 (需 Flex 報表有逐日 cash)。
+    早期未累積到真實資料的區間留空白，不回溯估值；需 ≥2 個交易日才畫。"""
+    pts = load_nav_history()  # 已正規化為 [{date, nav, cash?}] 且依日期升冪
     if len(pts) < 2:
         return None
-    dates_full = [p["date"] for p in pts]            # YYYY-MM-DD
+    dates_full = [p["date"] for p in pts]            # YYYY-MM-DD (從有記錄第一天起)
     value = [round(p["nav"], 2) for p in pts]
-    base_p = value[0] or 1.0
-    port_pct = [round((v / base_p - 1) * 100, 2) for v in value]
-    # S&P 500 對齊到 NAV 的日期 (非交易日 ffill 取前一交易日)
-    spy_pct = [None] * len(pts)
+    base_p = value[0]
+    port_ln = [_cum_ln(v, base_p) for v in value]    # 帳戶淨值累積對數報酬
+    # S&P 500 對齊到 NAV 的日期 (非交易日 ffill 取前一交易日)，同樣取對數
+    spy_ln = [None] * len(pts)
     try:
         spy = yf.Ticker("^GSPC").history(start=dates_full[0])["Close"].dropna()
         spy.index = spy.index.tz_localize(None)
@@ -2231,16 +2244,20 @@ def compute_portfolio_history(ibkr):
         spy_al = spy.reindex(idx, method="ffill")
         base_s = next((float(v) for v in spy_al.values if pd.notna(v)), None)
         if base_s:
-            spy_pct = [round((float(v) / base_s - 1) * 100, 2) if pd.notna(v) else None
-                       for v in spy_al.values]
+            spy_ln = [_cum_ln(float(v), base_s) if pd.notna(v) else None for v in spy_al.values]
     except Exception:
         pass
+    # 持倉比例 (1 − 現金/NAV)；無 cash 的日子留 None
+    pos_ratio = []
+    for p in pts:
+        c, nav = p.get("cash"), p.get("nav")
+        pos_ratio.append(round((1 - c / nav) * 100, 2) if (c is not None and nav) else None)
     dates = [d[5:] for d in dates_full]              # MM-DD 軸標籤
-    return {"dates": dates, "value": value, "port_pct": port_pct, "spy_pct": spy_pct,
-            "alloc": build_alloc_data(ibkr.get("positions", []))}
+    return {"dates": dates, "value": value, "port_ln": port_ln, "spy_ln": spy_ln,
+            "pos_ratio": pos_ratio, "alloc": build_alloc_data(ibkr.get("positions", []))}
 
 def generate_holdings_chart_script(port_hist, alloc):
-    """持股明細頁圖表 JS：(1) 每日持股淨值 vs S&P 500 折線 (2) 持倉比例圓餅。"""
+    """持股明細頁圖表 JS：(1) 帳戶淨值 vs S&P 500 對數報酬折線 (2) 持倉比例(1−現金) 折線 (3) 持倉配置圓餅。"""
     T = THEME
     if not port_hist and not alloc:
         return ""
@@ -2249,10 +2266,10 @@ def generate_holdings_chart_script(port_hist, alloc):
                "#ff8a6b", "#b07bff", "#8b95a5"]
     js = []
     if port_hist:
-        last_pct = next((v for v in reversed(port_hist["port_pct"]) if v is not None), 0)
-        last_spy = next((v for v in reversed(port_hist["spy_pct"]) if v is not None), None)
+        last_pct = next((v for v in reversed(port_hist["port_ln"]) if v is not None), 0)
+        last_spy = next((v for v in reversed(port_hist["spy_ln"]) if v is not None), None)
         last_val = port_hist["value"][-1] if port_hist["value"] else 0
-        title = (f"帳戶淨值 ${last_val:,.0f} · 累積 {len(port_hist['dates'])} 交易日 {last_pct:+.2f}%"
+        title = (f"帳戶淨值 ${last_val:,.0f} · {len(port_hist['dates'])} 交易日 對數報酬 {last_pct:+.2f}%"
                  + (f" · S&P {last_spy:+.2f}%" if last_spy is not None else ""))
         js.append(f"""
 window._holdNav = {json.dumps(port_hist)};
@@ -2268,19 +2285,41 @@ window._holdNav = {json.dumps(port_hist)};
         if (!ps || !ps.length) return '';
         var i = ps[0].dataIndex, d = window._holdNav;
         var s = d.dates[i] + '<br/>帳戶淨值 $' + (d.value[i]||0).toLocaleString(undefined,{{maximumFractionDigits:0}}) + '<br/>';
-        for (var k=0;k<ps.length;k++) {{ var v = ps[k].value; s += ps[k].marker + ps[k].seriesName + ': ' + (v==null?'-':v.toFixed(2)+'%') + '<br/>'; }}
+        for (var k=0;k<ps.length;k++) {{ var v = ps[k].value; s += ps[k].marker + ps[k].seriesName + ' (ln): ' + (v==null?'-':v.toFixed(2)+'%') + '<br/>'; }}
         return s;
       }} }},
+    grid: {{ left: '7%', right: '6%', top: '20%', bottom: '12%' }},
+    xAxis: {{ type: 'category', data: {json.dumps(port_hist["dates"])}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+    yAxis: {{ type: 'value', scale: true, name: '對數報酬', nameTextStyle: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLine: {{show: false}} }},
+    dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
+    series: [
+      {{ name: '帳戶淨值', type: 'line', data: {json.dumps(port_hist["port_ln"])}, smooth: true, showSymbol: false, connectNulls: false, lineStyle: {{width: 2, color: '{T["up"]}'}}, itemStyle: {{color: '{T["up"]}'}}, areaStyle: {{color: 'rgba(34,211,154,0.10)'}} }},
+      {{ name: 'S&P 500', type: 'line', data: {json.dumps(port_hist["spy_ln"])}, smooth: true, showSymbol: false, connectNulls: false, lineStyle: {{width: 1.6, color: '{T["rsi"]}'}}, itemStyle: {{color: '{T["rsi"]}'}} }}
+    ]
+  }});
+  window.addEventListener('resize', function(){{ nc.resize(); }});
+}})();
+""")
+        # 持倉比例 (1 − 現金/NAV) 折線：需至少 2 個有 cash 的交易日
+        pr = port_hist.get("pos_ratio") or []
+        if sum(1 for v in pr if v is not None) >= 2:
+            js.append(f"""
+(function(){{
+  var el = document.getElementById('holdings_posratio_chart');
+  if (!el) return;
+  var pc = echarts.init(el);
+  pc.setOption({{
+    title: {{ text: '持倉比例 (1 − 現金比例)', left: '6%', top: '3%', textStyle: {{fontSize: 12, color: '{T["title"]}', fontWeight: 700, fontFamily: 'IBM Plex Mono'}} }},
+    tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}}, valueFormatter: function(v){{return v==null?'-':v.toFixed(2)+'%';}} }},
     grid: {{ left: '7%', right: '6%', top: '20%', bottom: '12%' }},
     xAxis: {{ type: 'category', data: {json.dumps(port_hist["dates"])}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
     yAxis: {{ type: 'value', scale: true, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLine: {{show: false}} }},
     dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
     series: [
-      {{ name: '帳戶淨值', type: 'line', data: {json.dumps(port_hist["port_pct"])}, smooth: true, showSymbol: false, connectNulls: false, lineStyle: {{width: 2, color: '{T["up"]}'}}, itemStyle: {{color: '{T["up"]}'}}, areaStyle: {{color: 'rgba(34,211,154,0.10)'}} }},
-      {{ name: 'S&P 500', type: 'line', data: {json.dumps(port_hist["spy_pct"])}, smooth: true, showSymbol: false, connectNulls: false, lineStyle: {{width: 1.6, color: '{T["rsi"]}'}}, itemStyle: {{color: '{T["rsi"]}'}} }}
+      {{ name: '持倉比例', type: 'line', data: {json.dumps(pr)}, smooth: true, showSymbol: false, connectNulls: false, lineStyle: {{width: 2, color: '{T["ma20"]}'}}, itemStyle: {{color: '{T["ma20"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.10)'}} }}
     ]
   }});
-  window.addEventListener('resize', function(){{ nc.resize(); }});
+  window.addEventListener('resize', function(){{ pc.resize(); }});
 }})();
 """)
     if alloc:
@@ -2290,7 +2329,7 @@ window._holdNav = {json.dumps(port_hist)};
   if (!el) return;
   var ac = echarts.init(el);
   ac.setOption({{
-    title: {{ text: '持倉比例', left: '6%', top: '3%', textStyle: {{fontSize: 12, color: '{T["title"]}', fontWeight: 700, fontFamily: 'IBM Plex Mono'}} }},
+    title: {{ text: '持倉配置 (依標的)', left: '6%', top: '3%', textStyle: {{fontSize: 12, color: '{T["title"]}', fontWeight: 700, fontFamily: 'IBM Plex Mono'}} }},
     tooltip: {{ trigger: 'item', backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}},
       formatter: function(p){{ return p.name + ': <b>$' + (p.value||0).toLocaleString(undefined,{{maximumFractionDigits:0}}) + '</b> (' + p.percent + '%)'; }} }},
     legend: {{ type: 'scroll', orient: 'vertical', right: '3%', top: 'middle', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 10, itemHeight: 8 }},
@@ -2306,7 +2345,7 @@ window._holdNav = {json.dumps(port_hist)};
 """)
     return "\n".join(js)
 
-def generate_holdings_section(ibkr, has_hist=False):
+def generate_holdings_section(ibkr, has_hist=False, has_posratio=False):
     """IBKR 持股明細頁：帳戶總覽 + 圖表 + 持股表"""
     positions = sorted(ibkr.get("positions", []),
                        key=lambda p: p.get("market_value", 0), reverse=True)
@@ -2368,16 +2407,24 @@ def generate_holdings_section(ibkr, has_hist=False):
     <div class="card holdings-chart-card" style="flex:2 1 420px;min-width:300px">
       <div id="holdings_nav_chart" class="chart-box" style="height:320px;background:transparent;border:none"></div>
       <div style="font-size:11px;color:var(--ink-3);margin-top:6px;line-height:1.6">
-        每日帳戶淨值 (IBKR Flex Web Service 的日終 NAV，每日累積)，與 S&amp;P 500 同期累積報酬 (%) 對比；
-        尚未累積到真實資料的早期區間留空白，不做回溯估值。
+        從有記錄第一天起的每日帳戶淨值 (IBKR Flex Web Service 日終 NAV)，與 S&amp;P 500 取
+        <b>累積對數報酬</b> (100·ln(Vt/V0)) 對比，兩線起點皆為 0；早期未累積區間留空白，不回溯估值。
       </div>
     </div>""" if has_hist else "")
+    posratio_card = (f"""
+    <div class="card holdings-chart-card" style="flex:1 1 100%;min-width:300px">
+      <div id="holdings_posratio_chart" class="chart-box" style="height:280px;background:transparent;border:none"></div>
+      <div style="font-size:11px;color:var(--ink-3);margin-top:6px;line-height:1.6">
+        持倉比例 = 1 − 現金/帳戶淨值，逐日資料來自 Flex 報表的 cash / total；無現金資料的日子留空白。
+      </div>
+    </div>""" if has_posratio else "")
     charts_row = f"""
     <div class="holdings-charts" style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px">
       {nav_card}
       <div class="card holdings-chart-card" style="flex:1 1 320px;min-width:280px">
         <div id="holdings_alloc_chart" class="chart-box" style="height:320px;background:transparent;border:none"></div>
       </div>
+      {posratio_card}
     </div>"""
 
     return f"""<div class="section-head"><span class="eyebrow">IBKR Portfolio</span><h2>持股明細</h2></div>
@@ -2407,7 +2454,10 @@ def generate_html(stocks_data, options_data, fund_data, md):
     trade_markers = build_trade_markers(ibkr)
     has_ibkr = bool(ibkr.get("positions"))
     port_hist = compute_portfolio_history(ibkr) if has_ibkr else None
-    holdings_section = generate_holdings_section(ibkr, bool(port_hist)) if has_ibkr else ""
+    has_posratio = bool(port_hist) and sum(
+        1 for v in (port_hist.get("pos_ratio") or []) if v is not None) >= 2
+    holdings_section = (generate_holdings_section(ibkr, bool(port_hist), has_posratio)
+                       if has_ibkr else "")
     holdings_chart_script = (
         generate_holdings_chart_script(port_hist, build_alloc_data(ibkr.get("positions", [])))
         if has_ibkr else "")
