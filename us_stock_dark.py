@@ -88,6 +88,19 @@ RM_SIGNAL_ZH = {
 # (GitHub Actions 排程建置環境無法直連券商，故採快照檔)
 # =========================================================
 IBKR_DATA_FILE = "ibkr_data.json"
+NAV_HISTORY_FILE = "nav_history.json"  # 每日帳戶淨值累積檔 (由 build_ibkr_snapshot.py 累積)
+
+def load_nav_history():
+    """讀取每日帳戶淨值累積檔 [{date, net_liq}, ...]，無檔則回空 list。"""
+    if not os.path.exists(NAV_HISTORY_FILE):
+        return []
+    try:
+        with open(NAV_HISTORY_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception as e:
+        print(f"  ⚠️ 讀取 NAV 歷史失敗: {e}")
+        return []
 
 def load_ibkr_data():
     if not os.path.exists(IBKR_DATA_FILE):
@@ -2186,52 +2199,36 @@ def build_alloc_data(positions, top_n=14):
         return head
     return items
 
-def compute_portfolio_history(ibkr, period="6mo"):
-    """以「目前持股數量」回溯估值，計算每日持股淨值 (Σ qty×close) 與 S&P 500 的累積報酬對比。
-    注意：快照無帳戶歷史淨值，故以目前持股回溯估值，非實際歷史淨值 (未計入期間進出與現金)。"""
-    positions = ibkr.get("positions", [])
-    if not positions:
+def compute_portfolio_history(ibkr):
+    """每日帳戶淨值 (真實 NAV，由每日快照累積於 nav_history.json) 與 S&P 500 的累積報酬對比。
+    早期尚未累積到真實資料的區間留空白，不做回溯估值。需 ≥2 個交易日才畫圖。"""
+    hist = load_nav_history()
+    pts = sorted(
+        [{"date": h["date"], "net_liq": float(h["net_liq"])}
+         for h in hist if h.get("date") and h.get("net_liq") is not None],
+        key=lambda x: x["date"])
+    if len(pts) < 2:
         return None
-    closes = {}
-    for p in positions:
-        sym = p.get("symbol", "")
-        qty = p.get("position", 0) or 0
-        if not sym or qty == 0:
-            continue
-        try:
-            df = yf.Ticker(sym).history(period=period)
-            if df is None or df.empty:
-                continue
-            s = df["Close"].dropna()
-            if not s.empty:
-                s.index = s.index.tz_localize(None)
-                closes[sym] = s * qty
-        except Exception:
-            continue
-    if not closes:
-        return None
-    aligned = pd.concat(closes, axis=1).dropna()
-    if len(aligned) < 2:
-        return None
-    port = aligned.sum(axis=1)
+    dates_full = [p["date"] for p in pts]            # YYYY-MM-DD
+    value = [round(p["net_liq"], 2) for p in pts]
+    base_p = value[0] or 1.0
+    port_pct = [round((v / base_p - 1) * 100, 2) for v in value]
+    # S&P 500 對齊到 NAV 的日期 (非交易日 ffill 取前一交易日)
+    spy_pct = [None] * len(pts)
     try:
-        spy = yf.Ticker("^GSPC").history(period=period)["Close"].dropna()
+        spy = yf.Ticker("^GSPC").history(start=dates_full[0])["Close"].dropna()
         spy.index = spy.index.tz_localize(None)
-    except Exception:
-        spy = None
-    dates = [d.strftime("%m-%d") for d in port.index]
-    base_p = float(port.iloc[0]) or 1.0
-    value = [round(float(v), 2) for v in port.values]
-    port_pct = [round((float(v) / base_p - 1) * 100, 2) for v in port.values]
-    spy_pct = [None] * len(dates)
-    if spy is not None and not spy.empty:
-        spy_al = spy.reindex(port.index).ffill().bfill()
+        idx = pd.to_datetime(dates_full)
+        spy_al = spy.reindex(idx, method="ffill")
         base_s = next((float(v) for v in spy_al.values if pd.notna(v)), None)
         if base_s:
             spy_pct = [round((float(v) / base_s - 1) * 100, 2) if pd.notna(v) else None
                        for v in spy_al.values]
+    except Exception:
+        pass
+    dates = [d[5:] for d in dates_full]              # MM-DD 軸標籤
     return {"dates": dates, "value": value, "port_pct": port_pct, "spy_pct": spy_pct,
-            "alloc": build_alloc_data(positions)}
+            "alloc": build_alloc_data(ibkr.get("positions", []))}
 
 def generate_holdings_chart_script(port_hist, alloc):
     """持股明細頁圖表 JS：(1) 每日持股淨值 vs S&P 500 折線 (2) 持倉比例圓餅。"""
@@ -2246,7 +2243,7 @@ def generate_holdings_chart_script(port_hist, alloc):
         last_pct = next((v for v in reversed(port_hist["port_pct"]) if v is not None), 0)
         last_spy = next((v for v in reversed(port_hist["spy_pct"]) if v is not None), None)
         last_val = port_hist["value"][-1] if port_hist["value"] else 0
-        title = (f"持股淨值 ${last_val:,.0f} · 近 {len(port_hist['dates'])} 交易日 {last_pct:+.2f}%"
+        title = (f"帳戶淨值 ${last_val:,.0f} · 累積 {len(port_hist['dates'])} 交易日 {last_pct:+.2f}%"
                  + (f" · S&P {last_spy:+.2f}%" if last_spy is not None else ""))
         js.append(f"""
 window._holdNav = {json.dumps(port_hist)};
@@ -2256,12 +2253,12 @@ window._holdNav = {json.dumps(port_hist)};
   var nc = echarts.init(el);
   nc.setOption({{
     title: {{ text: {json.dumps(title)}, left: '6%', top: '3%', textStyle: {{fontSize: 12, color: '{T["title"]}', fontWeight: 700, fontFamily: 'IBM Plex Mono'}} }},
-    legend: {{ data: ['持股淨值','S&P 500'], top: '4%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+    legend: {{ data: ['帳戶淨值','S&P 500'], top: '4%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
     tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}},
       formatter: function(ps){{
         if (!ps || !ps.length) return '';
         var i = ps[0].dataIndex, d = window._holdNav;
-        var s = d.dates[i] + '<br/>持股淨值 $' + (d.value[i]||0).toLocaleString(undefined,{{maximumFractionDigits:0}}) + '<br/>';
+        var s = d.dates[i] + '<br/>帳戶淨值 $' + (d.value[i]||0).toLocaleString(undefined,{{maximumFractionDigits:0}}) + '<br/>';
         for (var k=0;k<ps.length;k++) {{ var v = ps[k].value; s += ps[k].marker + ps[k].seriesName + ': ' + (v==null?'-':v.toFixed(2)+'%') + '<br/>'; }}
         return s;
       }} }},
@@ -2270,8 +2267,8 @@ window._holdNav = {json.dumps(port_hist)};
     yAxis: {{ type: 'value', scale: true, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLine: {{show: false}} }},
     dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
     series: [
-      {{ name: '持股淨值', type: 'line', data: {json.dumps(port_hist["port_pct"])}, smooth: true, showSymbol: false, connectNulls: true, lineStyle: {{width: 2, color: '{T["up"]}'}}, itemStyle: {{color: '{T["up"]}'}}, areaStyle: {{color: 'rgba(34,211,154,0.10)'}} }},
-      {{ name: 'S&P 500', type: 'line', data: {json.dumps(port_hist["spy_pct"])}, smooth: true, showSymbol: false, connectNulls: true, lineStyle: {{width: 1.6, color: '{T["rsi"]}'}}, itemStyle: {{color: '{T["rsi"]}'}} }}
+      {{ name: '帳戶淨值', type: 'line', data: {json.dumps(port_hist["port_pct"])}, smooth: true, showSymbol: false, connectNulls: false, lineStyle: {{width: 2, color: '{T["up"]}'}}, itemStyle: {{color: '{T["up"]}'}}, areaStyle: {{color: 'rgba(34,211,154,0.10)'}} }},
+      {{ name: 'S&P 500', type: 'line', data: {json.dumps(port_hist["spy_pct"])}, smooth: true, showSymbol: false, connectNulls: false, lineStyle: {{width: 1.6, color: '{T["rsi"]}'}}, itemStyle: {{color: '{T["rsi"]}'}} }}
     ]
   }});
   window.addEventListener('resize', function(){{ nc.resize(); }});
@@ -2362,8 +2359,8 @@ def generate_holdings_section(ibkr, has_hist=False):
     <div class="card holdings-chart-card" style="flex:2 1 420px;min-width:300px">
       <div id="holdings_nav_chart" class="chart-box" style="height:320px;background:transparent;border:none"></div>
       <div style="font-size:11px;color:var(--ink-3);margin-top:6px;line-height:1.6">
-        以「目前持股數量」回溯估值的每日持股淨值 (Σ 股數×收盤)，與 S&amp;P 500 同期累積報酬對比；
-        非帳戶實際歷史淨值 (未計入期間進出與現金)。
+        每日帳戶淨值 (IBKR net liquidation，由每日快照累積)，與 S&amp;P 500 同期累積報酬 (%) 對比；
+        尚未累積到真實資料的早期區間留空白，不做回溯估值。
       </div>
     </div>""" if has_hist else "")
     charts_row = f"""
