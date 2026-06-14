@@ -23,6 +23,11 @@
   - `write_residual_series_json()` 輸出 `docs/data/series/{TICKER}.json`
     （dates/cum_alpha/ma20/ma60/rolling_alpha/z_short/rmom/price/beta_mkt/r2，NaN→null）
 - 持股明細：讀 `ibkr_data.json` 顯示 IBKR 帳戶總覽與持股表
+  - 每日持股淨值 vs S&P 500 折線（`compute_portfolio_history()` 以目前持股數量回溯
+    估值 Σ 股數×收盤，與 SPX 同期累積報酬 %；快照無歷史淨值故為回溯估值，網路失敗則略過）
+  - 持倉比例圓餅（`build_alloc_data()`，依市值排序，超過前 14 檔併為「其他」）
+  - 圖表 JS 由 `generate_holdings_chart_script()` 產生，div 隱藏於分頁，靠 `switchTab` 的
+    `resizeAllCharts` 觸發 resize
 - K 線進出標記：依 `ibkr_data.json` 的交易，按「每日×方向」VWAP 標在圖上，可勾選顯示/隱藏
 
 ## IBKR 快照
