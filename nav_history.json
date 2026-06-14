@@ -1,11 +1,11 @@
 {
-  "updated_at": "2026-06-14T10:42:41Z",
-  "account_id": null,
+  "updated_at": "2026-06-14T11:13:51Z",
+  "account_id": "U20035238",
   "currency": "USD",
   "series": [
     {
       "date": "2026-06-12",
-      "nav": 102031.02
+      "nav": 101874.09
     }
   ]
 }
