@@ -2300,9 +2300,13 @@ window._holdNav = {json.dumps(port_hist)};
   window.addEventListener('resize', function(){{ nc.resize(); }});
 }})();
 """)
-        # 持倉比例 (1 − 現金/NAV) 折線：需至少 2 個有 cash 的交易日
+        # 持倉比例 (1 − 現金/NAV) 折線：從第一個有 cash 的交易日開始畫 (需 ≥2 個)
         pr = port_hist.get("pos_ratio") or []
-        if sum(1 for v in pr if v is not None) >= 2:
+        nn = [i for i, v in enumerate(pr) if v is not None]
+        if len(nn) >= 2:
+            start = nn[0]
+            pr_dates = port_hist["dates"][start:]
+            pr_vals = pr[start:]
             js.append(f"""
 (function(){{
   var el = document.getElementById('holdings_posratio_chart');
@@ -2312,11 +2316,11 @@ window._holdNav = {json.dumps(port_hist)};
     title: {{ text: '持倉比例 (1 − 現金比例)', left: '6%', top: '3%', textStyle: {{fontSize: 12, color: '{T["title"]}', fontWeight: 700, fontFamily: 'IBM Plex Mono'}} }},
     tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}}, valueFormatter: function(v){{return v==null?'-':v.toFixed(2)+'%';}} }},
     grid: {{ left: '7%', right: '6%', top: '20%', bottom: '12%' }},
-    xAxis: {{ type: 'category', data: {json.dumps(port_hist["dates"])}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+    xAxis: {{ type: 'category', data: {json.dumps(pr_dates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
     yAxis: {{ type: 'value', scale: true, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLine: {{show: false}} }},
     dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
     series: [
-      {{ name: '持倉比例', type: 'line', data: {json.dumps(pr)}, smooth: true, showSymbol: false, connectNulls: false, lineStyle: {{width: 2, color: '{T["ma20"]}'}}, itemStyle: {{color: '{T["ma20"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.10)'}} }}
+      {{ name: '持倉比例', type: 'line', data: {json.dumps(pr_vals)}, smooth: true, showSymbol: false, connectNulls: false, lineStyle: {{width: 2, color: '{T["ma20"]}'}}, itemStyle: {{color: '{T["ma20"]}'}}, areaStyle: {{color: 'rgba(224,168,60,0.10)'}} }}
     ]
   }});
   window.addEventListener('resize', function(){{ pc.resize(); }});
