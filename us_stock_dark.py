@@ -109,13 +109,19 @@ def load_nav_history():
         v = r.get("nav", r.get("net_liq"))
         if d and v is not None:
             try:
-                rec = {"date": d, "nav": float(v)}
-                c = r.get("cash")
-                if c is not None:
-                    rec["cash"] = float(c)
-                out.append(rec)
+                nav = float(v)
             except (TypeError, ValueError):
                 continue
+            if nav <= 0:  # Flex 對未報告/未入金日期會回 0，略過 (否則對數報酬基準除以 0)
+                continue
+            rec = {"date": d, "nav": nav}
+            c = r.get("cash")
+            if c is not None:
+                try:
+                    rec["cash"] = float(c)
+                except (TypeError, ValueError):
+                    pass
+            out.append(rec)
     out.sort(key=lambda x: x["date"])
     return out
 
