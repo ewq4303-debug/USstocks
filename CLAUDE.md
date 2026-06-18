@@ -23,10 +23,14 @@
   - `write_residual_series_json()` 輸出 `docs/data/series/{TICKER}.json`
     （dates/cum_alpha/ma20/ma60/rolling_alpha/z_short/rmom/price/beta_mkt/r2，NaN→null）
 - 持股明細：讀 `ibkr_data.json` 顯示 IBKR 帳戶總覽與持股表
-  - 帳戶淨值 vs S&P 500 折線（`compute_portfolio_history()` 讀 `nav_history.json` 真實每日 NAV，
-    從有記錄第一天起，兩線皆取**累積對數報酬** 100·ln(Vt/V0)（`_cum_ln`，起點 0）；IBKR 無歷史
+  - 帳戶淨值折線（`compute_portfolio_history()` 讀 `nav_history.json` 真實每日 NAV，
+    從有記錄第一天起取**累積對數報酬** 100·ln(Vt/V0)（`_cum_ln`，起點 0）；IBKR 無歷史
     NAV 端點故由 Flex Web Service 每日累積，早期未累積區間留空白不回溯估值，需 ≥2 交易日才畫，
-    `connectNulls:false`）
+    `connectNulls:false`；`load_nav_history` 過濾 nav≤0（Flex 對未入金/未報告日回 0 的垃圾值）
+  - 右上「比較大盤 / NASDAQ / 費半」切換鈕（`toggleNavCompare`）：切到 `compare` 視圖，從
+    「最近一段連續日資料」起點（跳過孤立手動基準點，偵測 >10 天大間隔；例 6/4）起，
+    帳戶淨值 / S&P500(^GSPC) / NASDAQ(^IXIC) / 費半(^SOX) 的累積對數報酬，起點皆 0、單位 %；
+    `optSingle`/`optCompare` 兩組 option 以 `setOption(...,true)` 切換）
   - 持倉比例(1−現金) 折線（`pos_ratio = 1 − cash/nav`，逐日 cash 來自 Flex 報表；需 ≥2 個有 cash
     的交易日才畫，無 cash 的日子留空白）
   - `nav_history.json`：每日帳戶淨值累積檔 `{updated_at, account_id, currency, series:[{date, nav, cash?}]}`，

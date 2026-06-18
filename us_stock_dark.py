@@ -2241,26 +2241,48 @@ def compute_portfolio_history(ibkr):
     value = [round(p["nav"], 2) for p in pts]
     base_p = value[0]
     port_ln = [_cum_ln(v, base_p) for v in value]    # 帳戶淨值累積對數報酬
-    # S&P 500 對齊到 NAV 的日期 (非交易日 ffill 取前一交易日)，同樣取對數
-    spy_ln = [None] * len(pts)
-    try:
-        spy = yf.Ticker("^GSPC").history(start=dates_full[0])["Close"].dropna()
-        spy.index = spy.index.tz_localize(None)
-        idx = pd.to_datetime(dates_full)
-        spy_al = spy.reindex(idx, method="ffill")
-        base_s = next((float(v) for v in spy_al.values if pd.notna(v)), None)
-        if base_s:
-            spy_ln = [_cum_ln(float(v), base_s) if pd.notna(v) else None for v in spy_al.values]
-    except Exception:
-        pass
     # 持倉比例 (1 − 現金/NAV)；無 cash 的日子留 None
     pos_ratio = []
     for p in pts:
         c, nav = p.get("cash"), p.get("nav")
         pos_ratio.append(round((1 - c / nav) * 100, 2) if (c is not None and nav) else None)
+    # 比較視圖：從「最近一段連續日資料」的起點 (例 6/4，跳過孤立的手動基準點) 起，
+    # 帳戶淨值 / S&P500 / NASDAQ / 費半 的累積對數報酬，起點皆 0；缺值留 None。
+    ds_obj = [datetime.strptime(d, "%Y-%m-%d") for d in dates_full]
+    comp_start = 0
+    for i in range(len(ds_obj) - 1, 0, -1):
+        if (ds_obj[i] - ds_obj[i - 1]).days > 10:    # 找最後一個大間隔 (1/1→6/4)
+            comp_start = i
+            break
+    compare = None
+    if len(dates_full) - comp_start >= 2:
+        cdates_full = dates_full[comp_start:]
+        cidx = pd.to_datetime(cdates_full)
+
+        def _idx_cum(tk):
+            try:
+                h = yf.Ticker(tk).history(start=cdates_full[0])["Close"].dropna()
+                h.index = h.index.tz_localize(None)
+                al = h.reindex(cidx, method="ffill")
+                b = next((float(v) for v in al.values if pd.notna(v)), None)
+                if b:
+                    return [_cum_ln(float(v), b) if pd.notna(v) else None for v in al.values]
+            except Exception:
+                pass
+            return [None] * len(cidx)
+
+        compare = {
+            "dates": [d[5:] for d in cdates_full],
+            "start": cdates_full[0],
+            "port": [_cum_ln(v, value[comp_start]) for v in value[comp_start:]],
+            "spx": _idx_cum("^GSPC"),
+            "ndx": _idx_cum("^IXIC"),
+            "sox": _idx_cum("^SOX"),
+        }
     dates = [d[5:] for d in dates_full]              # MM-DD 軸標籤
-    return {"dates": dates, "value": value, "port_ln": port_ln, "spy_ln": spy_ln,
-            "pos_ratio": pos_ratio, "alloc": build_alloc_data(ibkr.get("positions", []))}
+    return {"dates": dates, "value": value, "port_ln": port_ln,
+            "pos_ratio": pos_ratio, "compare": compare,
+            "alloc": build_alloc_data(ibkr.get("positions", []))}
 
 def generate_holdings_chart_script(port_hist, alloc):
     """持股明細頁圖表 JS：(1) 帳戶淨值 vs S&P 500 對數報酬折線 (2) 持倉比例(1−現金) 折線 (3) 持倉配置圓餅。"""
@@ -2273,36 +2295,53 @@ def generate_holdings_chart_script(port_hist, alloc):
     js = []
     if port_hist:
         last_pct = next((v for v in reversed(port_hist["port_ln"]) if v is not None), 0)
-        last_spy = next((v for v in reversed(port_hist["spy_ln"]) if v is not None), None)
         last_val = port_hist["value"][-1] if port_hist["value"] else 0
-        title = (f"帳戶淨值 ${last_val:,.0f} · {len(port_hist['dates'])} 交易日 對數報酬 {last_pct:+.2f}%"
-                 + (f" · S&P {last_spy:+.2f}%" if last_spy is not None else ""))
+        title = f"帳戶淨值 ${last_val:,.0f} · {len(port_hist['dates'])} 交易日 對數報酬 {last_pct:+.2f}%"
+        cmp = port_hist.get("compare")
+        cmp_lbl = cmp["start"][5:] if cmp else ""
         js.append(f"""
 window._holdNav = {json.dumps(port_hist)};
 (function(){{
-  var el = document.getElementById('holdings_nav_chart');
+  var d = window._holdNav, el = document.getElementById('holdings_nav_chart');
   if (!el) return;
-  var nc = echarts.init(el);
-  nc.setOption({{
-    title: {{ text: {json.dumps(title)}, left: '6%', top: '3%', textStyle: {{fontSize: 12, color: '{T["title"]}', fontWeight: 700, fontFamily: 'IBM Plex Mono'}} }},
-    legend: {{ data: ['帳戶淨值','S&P 500'], top: '4%', right: '6%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
-    tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}}, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}},
-      formatter: function(ps){{
-        if (!ps || !ps.length) return '';
-        var i = ps[0].dataIndex, d = window._holdNav;
-        var s = d.dates[i] + '<br/>帳戶淨值 $' + (d.value[i]||0).toLocaleString(undefined,{{maximumFractionDigits:0}}) + '<br/>';
-        for (var k=0;k<ps.length;k++) {{ var v = ps[k].value; s += ps[k].marker + ps[k].seriesName + ' (ln): ' + (v==null?'-':v.toFixed(2)+'%') + '<br/>'; }}
-        return s;
-      }} }},
-    grid: {{ left: '7%', right: '6%', top: '20%', bottom: '12%' }},
-    xAxis: {{ type: 'category', data: {json.dumps(port_hist["dates"])}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
-    yAxis: {{ type: 'value', scale: true, name: '對數報酬', nameTextStyle: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLine: {{show: false}} }},
-    dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
-    series: [
-      {{ name: '帳戶淨值', type: 'line', data: {json.dumps(port_hist["port_ln"])}, smooth: true, showSymbol: false, connectNulls: false, lineStyle: {{width: 2, color: '{T["up"]}'}}, itemStyle: {{color: '{T["up"]}'}}, areaStyle: {{color: 'rgba(34,211,154,0.10)'}} }},
-      {{ name: 'S&P 500', type: 'line', data: {json.dumps(port_hist["spy_ln"])}, smooth: true, showSymbol: false, connectNulls: false, lineStyle: {{width: 1.6, color: '{T["rsi"]}'}}, itemStyle: {{color: '{T["rsi"]}'}} }}
-    ]
-  }});
+  var nc = echarts.init(el); window._navChart = nc;
+  var GRID = {{ left: '7%', right: '6%', top: '20%', bottom: '12%' }};
+  var XAX = function(data){{ return {{ type: 'category', data: data, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}; }};
+  var YAX = {{ type: 'value', scale: true, name: '累積報酬', nameTextStyle: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: '{{value}}%'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLine: {{show: false}} }};
+  var TT_BASE = {{ backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1, textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}} }};
+  function fmtPct(v){{ return v==null ? '-' : (v>=0?'+':'')+v.toFixed(2)+'%'; }}
+  function optSingle(){{
+    return {{
+      title: {{ text: {json.dumps(title)}, left: '6%', top: '3%', textStyle: {{fontSize: 12, color: '{T["title"]}', fontWeight: 700, fontFamily: 'IBM Plex Mono'}} }},
+      tooltip: Object.assign({{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}},
+        formatter: function(ps){{ if(!ps||!ps.length) return ''; var i=ps[0].dataIndex;
+          return d.dates[i] + '<br/>帳戶淨值 $' + (d.value[i]||0).toLocaleString(undefined,{{maximumFractionDigits:0}}) + '<br/>' + ps[0].marker + '對數報酬: ' + fmtPct(ps[0].value); }} }}, TT_BASE),
+      grid: GRID, xAxis: XAX(d.dates), yAxis: YAX, dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
+      series: [{{ name: '帳戶淨值', type: 'line', data: d.port_ln, smooth: true, showSymbol: false, connectNulls: false, lineStyle: {{width: 2, color: '{T["up"]}'}}, itemStyle: {{color: '{T["up"]}'}}, areaStyle: {{color: 'rgba(34,211,154,0.10)'}} }}]
+    }};
+  }}
+  function optCompare(){{
+    var c = d.compare, cols = {{'帳戶淨值':'{T["up"]}','S&P 500':'#6f9bff','NASDAQ':'#e0a83c','費半 (SOX)':'#b07bff'}};
+    var mk = function(name, arr){{ return {{ name: name, type: 'line', data: arr, smooth: true, showSymbol: false, connectNulls: true, lineStyle: {{width: name==='帳戶淨值'?2.2:1.6, color: cols[name]}}, itemStyle: {{color: cols[name]}} }}; }};
+    return {{
+      title: {{ text: '累積報酬比較 (' + c.start.slice(5) + ' 起，起點 0)', left: '6%', top: '3%', textStyle: {{fontSize: 12, color: '{T["title"]}', fontWeight: 700, fontFamily: 'IBM Plex Mono'}} }},
+      legend: {{ data: ['帳戶淨值','S&P 500','NASDAQ','費半 (SOX)'], top: '4%', right: '5%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+      tooltip: Object.assign({{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}},
+        formatter: function(ps){{ if(!ps||!ps.length) return ''; var s = ps[0].axisValue + '<br/>';
+          for(var k=0;k<ps.length;k++){{ s += ps[k].marker + ps[k].seriesName + ': ' + fmtPct(ps[k].value) + '<br/>'; }} return s; }} }}, TT_BASE),
+      grid: GRID, xAxis: XAX(c.dates), yAxis: YAX, dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
+      series: [mk('帳戶淨值', c.port), mk('S&P 500', c.spx), mk('NASDAQ', c.ndx), mk('費半 (SOX)', c.sox)]
+    }};
+  }}
+  window._navMode = 'single';
+  nc.setOption(optSingle());
+  window.toggleNavCompare = function(){{
+    if (!d.compare) return;
+    window._navMode = (window._navMode === 'single') ? 'compare' : 'single';
+    nc.setOption(window._navMode === 'compare' ? optCompare() : optSingle(), true);
+    var b = document.getElementById('navCompareBtn');
+    if (b) b.textContent = (window._navMode === 'compare') ? '◀ 顯示完整帳戶淨值' : '比較大盤 / NASDAQ / 費半 ({cmp_lbl} 起) ▶';
+  }};
   window.addEventListener('resize', function(){{ nc.resize(); }});
 }})();
 """)
@@ -2413,12 +2452,19 @@ def generate_holdings_section(ibkr, has_hist=False, has_posratio=False):
         f'<td class="{total_cls}">{total_ret:+.2f}%</td></tr>'
     )
 
+    has_compare = bool(port_hist and port_hist.get("compare"))
+    nav_btn = ('<button id="navCompareBtn" onclick="toggleNavCompare()" '
+               'style="position:absolute;top:10px;right:12px;z-index:5;font-size:10px;font-family:IBM Plex Mono,monospace;'
+               'color:var(--ink-2);background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:5px;'
+               'padding:3px 8px;cursor:pointer">比較大盤 / NASDAQ / 費半 ▶</button>') if has_compare else ""
     nav_card = (f"""
-    <div class="card holdings-chart-card" style="flex:2 1 420px;min-width:300px">
+    <div class="card holdings-chart-card" style="flex:2 1 420px;min-width:300px;position:relative">
+      {nav_btn}
       <div id="holdings_nav_chart" class="chart-box" style="height:320px;background:transparent;border:none"></div>
       <div style="font-size:11px;color:var(--ink-3);margin-top:6px;line-height:1.6">
-        從有記錄第一天起的每日帳戶淨值 (IBKR Flex Web Service 日終 NAV)，與 S&amp;P 500 取
-        <b>累積對數報酬</b> (100·ln(Vt/V0)) 對比，兩線起點皆為 0；早期未累積區間留空白，不回溯估值。
+        每日帳戶淨值 (IBKR Flex Web Service 日終 NAV) 的<b>累積對數報酬</b> (100·ln(Vt/V0))，起點為 0；
+        早期未累積區間留空白，不回溯估值。點右上按鈕可切換為「帳戶淨值 / S&amp;P 500 / NASDAQ / 費半」
+        自連續日資料起點 (起點皆 0) 的累積報酬比較。
       </div>
     </div>""" if has_hist else "")
     posratio_card = (f"""
