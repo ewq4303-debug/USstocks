@@ -2394,7 +2394,7 @@ window._holdNav = {json.dumps(port_hist)};
 """)
     return "\n".join(js)
 
-def generate_holdings_section(ibkr, has_hist=False, has_posratio=False):
+def generate_holdings_section(ibkr, has_hist=False, has_posratio=False, has_compare=False):
     """IBKR 持股明細頁：帳戶總覽 + 圖表 + 持股表"""
     positions = sorted(ibkr.get("positions", []),
                        key=lambda p: p.get("market_value", 0), reverse=True)
@@ -2452,7 +2452,6 @@ def generate_holdings_section(ibkr, has_hist=False, has_posratio=False):
         f'<td class="{total_cls}">{total_ret:+.2f}%</td></tr>'
     )
 
-    has_compare = bool(port_hist and port_hist.get("compare"))
     nav_btn = ('<button id="navCompareBtn" onclick="toggleNavCompare()" '
                'style="position:absolute;top:10px;right:12px;z-index:5;font-size:10px;font-family:IBM Plex Mono,monospace;'
                'color:var(--ink-2);background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:5px;'
@@ -2512,7 +2511,8 @@ def generate_html(stocks_data, options_data, fund_data, md):
     port_hist = compute_portfolio_history(ibkr) if has_ibkr else None
     has_posratio = bool(port_hist) and sum(
         1 for v in (port_hist.get("pos_ratio") or []) if v is not None) >= 2
-    holdings_section = (generate_holdings_section(ibkr, bool(port_hist), has_posratio)
+    has_compare = bool(port_hist and port_hist.get("compare"))
+    holdings_section = (generate_holdings_section(ibkr, bool(port_hist), has_posratio, has_compare)
                        if has_ibkr else "")
     holdings_chart_script = (
         generate_holdings_chart_script(port_hist, build_alloc_data(ibkr.get("positions", [])))
