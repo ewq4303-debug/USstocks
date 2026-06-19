@@ -83,61 +83,6 @@ RM_SIGNAL_ZH = {
 }
 
 # =========================================================
-# 敘事模式 (Narrative Mode) — 手動標記檔 narrative.json
-# 與客觀的 signal (rMOM/Z_short) 正交：signal 不變，僅疊加 action 做進出建議。
-# =========================================================
-NARRATIVE_FILE = "narrative.json"
-NARRATIVE_MODES = ("hold", "watch", "exit")  # 順風 / 回檢 / 退出
-NARRATIVE_DEFAULT = "watch"                   # 安全預設：未確認敘事前不亮綠色買點
-
-MODE_LABEL = {"hold": "持有", "watch": "回檢", "exit": "退出"}
-ACTION_LABEL = {
-    "add": "加碼", "watch": "觀望", "trim": "調節", "reduce": "減碼",
-    "exit_pending": "退出中", "review": "回檢", "hold": "持有",
-}
-ACTION_COLOR = {
-    "add": "#22d39a", "watch": "#8b95a5", "trim": "#e0a83c", "reduce": "#ff525b",
-    "exit_pending": "#ff525b", "review": "#ff9f40", "hold": "#8b95a5",
-}
-
-def load_narrative(tickers):
-    """讀 narrative.json → {ticker: mode}。清單內缺漏/非法值/非清單 ticker 一律
-    退為 'watch' 並記 log，不中斷流程。"""
-    raw = {}
-    if os.path.exists(NARRATIVE_FILE):
-        try:
-            with open(NARRATIVE_FILE, "r", encoding="utf-8") as f:
-                raw = json.load(f) or {}
-        except Exception as e:
-            print(f"  ⚠️ 讀取 narrative.json 失敗，全部退為 {NARRATIVE_DEFAULT}: {e}")
-            raw = {}
-    out = {}
-    for tk in tickers:
-        m = raw.get(tk)
-        if m not in NARRATIVE_MODES:
-            if m is not None:
-                print(f"    [Narrative] {tk} 非法模式 '{m}' → {NARRATIVE_DEFAULT}")
-            out[tk] = NARRATIVE_DEFAULT
-        else:
-            out[tk] = m
-    for tk in raw:
-        if tk not in tickers:
-            print(f"    [Narrative] narrative.json 的 {tk} 不在追蹤清單，已忽略")
-    return out
-
-def derive_action(mode, signal):
-    """由 (narrative_mode × signal) 推導 action。signal 缺值視為 no_signal。
-    exit 模式下 pullback(買方訊號) 一律抑制為 exit_pending。"""
-    sig = signal or "no_signal"
-    if mode == "hold":
-        return {"pullback": "add", "overheat": "trim", "weak": "review"}.get(sig, "hold")
-    if mode == "exit":
-        return "reduce" if sig in ("overheat", "weak") else "exit_pending"
-    # watch (含未知模式的安全預設)
-    return {"pullback": "watch", "overheat": "trim", "weak": "review"}.get(sig, "watch")
-
-
-# =========================================================
 # IBKR 持股 / 交易快照
 # 由 IBKR API (MCP) 取得後存於 ibkr_data.json，於建置時讀取。
 # (GitHub Actions 排程建置環境無法直連券商，故採快照檔)
@@ -430,8 +375,6 @@ def write_residual_series_json(stocks_data, out_dir=f"{OUTPUT_DIR}/data/series")
         payload = {
             "ticker": tk,
             "sector_etf": rm.get("sector_etf"),
-            "narrative_mode": rm.get("narrative_mode", NARRATIVE_DEFAULT),  # 純量，供前端標題顯示
-            "action": rm.get("action", "watch"),
             "dates": [d.strftime("%Y-%m-%d") for d in rm["cum_alpha"].index[sel]],
             "cum_alpha": col(rm["cum_alpha"]),
             "ma20": col(rm["cum_ma20"]),
@@ -1048,8 +991,7 @@ def generate_rating_table(stocks_data: dict) -> str:
         r = data["rating"]; key = r.get("rating_key", "n")
         if key in groups:
             groups[key]["stocks"].append({"ticker": tk, "name": data.get("name", ""), "change": data.get("change_pct", 0),
-                                          "tech": r.get("tech", 0), "chip": r.get("chip", 0), "total": r.get("total", 0),
-                                          "action": data.get("action", "watch")})
+                                          "tech": r.get("tech", 0), "chip": r.get("chip", 0), "total": r.get("total", 0)})
     for g in groups.values():
         g["stocks"].sort(key=lambda s: -s["total"])
     cols = ""
@@ -1058,9 +1000,7 @@ def generate_rating_table(stocks_data: dict) -> str:
         for s in g["stocks"]:
             cls = "up" if s["change"] >= 0 else "down"
             sign = "+" if s["change"] >= 0 else ""
-            act = s.get("action", "watch")
-            act_badge = f'<span class="act {act}" title="敘事動作">{ACTION_LABEL.get(act, act)}</span>'
-            chips += f'<div class="schip"><div class="schip-top"><span class="schip-name">{s["ticker"]} · {s["name"][:14]}</span><span class="schip-chg {cls}">{sign}{s["change"]:.2f}%</span></div><div class="schip-meta"><span class="tag t">技 {s["tech"]:g}</span><span class="tag c">籌 {s["chip"]:g}</span>{act_badge}</div></div>'
+            chips += f'<div class="schip"><div class="schip-top"><span class="schip-name">{s["ticker"]} · {s["name"][:14]}</span><span class="schip-chg {cls}">{sign}{s["change"]:.2f}%</span></div><div class="schip-meta"><span class="tag t">技 {s["tech"]:g}</span><span class="tag c">籌 {s["chip"]:g}</span></div></div>'
         if not g["stocks"]: chips = '<div class="empty">無</div>'
         cols += f'<div class="rcol" data-k="{key}"><div class="rcol-head"><span class="rcol-label">{g["label"]}</span><span class="rcol-count">{len(g["stocks"])}</span></div>{chips}</div>'
     return f"""<div class="rating-wrap">
@@ -1453,8 +1393,6 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
         rmom_vals = [None] * len(dates)
         ra_vals = [None] * len(dates)
         resid_title = "殘差動能 (資料不足)"
-        resid_act_color = "#8b95a5"
-        resid_mk_json = "[]"
         if resid:
             z_map = {d.date(): v for d, v in resid["z_short"].items()}
             rm_map = {d.date(): v for d, v in resid["rmom_series"].items()}
@@ -1475,40 +1413,7 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
             # 統一口徑：年化百分比 = mean(ε)×252×100
             a_txt = f"α年化 {ra_last*252*100:+.1f}%" if pd.notna(ra_last) else "α年化 -"
             rm_txt = f"rMOM {resid['rmom']:.2f}" if pd.notna(resid["rmom"]) else "rMOM -"
-            mode = resid.get("narrative_mode", NARRATIVE_DEFAULT)
-            action = resid.get("action", "watch")
-            # 模式標籤以 ECharts 富文本 {m|..} 上色 (色彩比照 action)
-            resid_title = (f"殘差動能 vs {fct} · {b_txt} {r2_txt} · {a_txt} · {rm_txt} "
-                           f"[{RM_SIGNAL_ZH[resid['signal']]}] " + "{m|[" + MODE_LABEL[mode] + "]}")
-            resid_act_color = ACTION_COLOR.get(action, "#8b95a5")
-
-            # Z_short 進出標記：取進入 ±2 區的「跨入點」避免雜亂。
-            # 買點 (Z≤-2) 僅 action=add 畫實心綠 / watch 畫空心灰 / 其餘(含 exit_pending) 不畫。
-            # 調節點 (Z≥+2) 各模式皆顯示：exit 模式紅(減碼)、其餘琥珀(調節)。
-            buy_mk, trim_mk = [], []
-            for i in range(len(z_vals)):
-                v = z_vals[i]
-                pv = z_vals[i - 1] if i > 0 else None
-                if v is None:
-                    continue
-                if v <= -2 and (pv is None or pv > -2):
-                    buy_mk.append((dates[i], v))
-                if v >= 2 and (pv is None or pv < 2):
-                    trim_mk.append((dates[i], v))
-            mk_data = []
-            if action in ("add", "watch"):
-                is_add = action == "add"
-                for d, v in buy_mk:
-                    mk_data.append({"coord": [d, v], "symbol": "circle", "symbolSize": 11,
-                                    "itemStyle": {"color": T["up"] if is_add else "transparent",
-                                                  "borderColor": T["up"] if is_add else T["neutral"],
-                                                  "borderWidth": 2}})
-            is_reduce = mode == "exit"
-            for d, v in trim_mk:
-                mk_data.append({"coord": [d, v], "symbol": "circle", "symbolSize": 9,
-                                "itemStyle": {"color": T["down"] if is_reduce else "#e0a83c",
-                                              "borderColor": "#0a0e15", "borderWidth": 1}})
-            resid_mk_json = json.dumps(mk_data, ensure_ascii=False)
+            resid_title = f"殘差動能 vs {fct} · {b_txt} {r2_txt} · {a_txt} · {rm_txt} [{RM_SIGNAL_ZH[resid['signal']]}]"
         ra_color = ["rgba(34,211,154,.45)" if (v is not None and v >= 0) else "rgba(255,82,91,.45)" for v in ra_vals]
 
         # tooltip 只顯示游標所屬副圖 (grid) 的 series；價格 2 位小數、α年化 %、量千分位。
@@ -1532,7 +1437,7 @@ var kc_{tk} = echarts.init(document.getElementById('kline_{tk}'));
 kc_{tk}.setOption({{
   title: [
     {{ text: 'K線 · 均線 · 成交量', left: '6%', top: '1%', textStyle: {{fontSize: 12, color: '{T["title"]}'}} }},
-    {{ text: '{resid_title}', left: '6%', top: '45%', textStyle: {{fontSize: 11, color: '{T["title"]}', rich: {{ m: {{ color: '{resid_act_color}', fontSize: 11, fontWeight: 'bold' }} }} }} }},
+    {{ text: '{resid_title}', left: '6%', top: '45%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
     {{ text: 'KD(14,3,3)', left: '6%', top: '60.5%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
     {{ text: 'MACD(12,26,9)', left: '6%', top: '76%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
   ],
@@ -1589,7 +1494,6 @@ kc_{tk}.setOption({{
     {{ name: 'α年化', type: 'bar', xAxisIndex: 3, yAxisIndex: 5, data: {json.dumps(ra_vals)}, itemStyle: {{color: function(p){{return {json.dumps(ra_color)}[p.dataIndex];}}}} }},
     {{ name: 'rMOM', type: 'line', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(rmom_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["ma20"]}'}} }},
     {{ name: 'Z(21日)', type: 'line', xAxisIndex: 3, yAxisIndex: 4, data: {json.dumps(z_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.4, color: '{T["rsi"]}'}},
-       markPoint: {{ silent: true, animation: false, label: {{show: false}}, data: {resid_mk_json} }},
        markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 0, lineStyle: {{color: '{T["neutral"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }},
        markArea: {{ silent: true, data: [
          [{{yAxis: 2, itemStyle: {{color: 'rgba(255,82,91,.07)'}}}}, {{yAxis: 999}}],
@@ -2140,15 +2044,6 @@ body{font-family:var(--sans);color:var(--ink);line-height:1.5;padding:20px;min-h
 .schip-meta{display:flex;gap:6px;margin-top:5px}
 .tag{font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:5px}
 .tag.t{background:rgba(77,127,255,.14);color:#7f9fff} .tag.c{background:var(--up-soft);color:var(--up)}
-/* 敘事動作徽章 (action 由 Python 算好，前端只上色) */
-.act{font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:5px;border:1px solid transparent;letter-spacing:.02em}
-.act.add{background:var(--up);color:#04140d}
-.act.watch{background:transparent;border-color:#3a4658;color:var(--ink-3)}
-.act.hold{background:var(--surface-3);color:var(--ink-2)}
-.act.trim{background:rgba(224,168,60,.16);color:var(--gold)}
-.act.reduce,.act.exit_pending{background:var(--down-soft);color:var(--down)}
-.act.review{background:rgba(255,159,64,.16);color:#ff9f40;animation:actflash 1.25s ease-in-out infinite}
-@keyframes actflash{0%,100%{opacity:1}50%{opacity:.4}}
 .empty{font-size:11px;color:var(--ink-3);text-align:center;padding:14px 0}
 .legend{margin-top:15px;border-top:1px dashed var(--line);padding-top:13px}
 .legend summary{cursor:pointer;font-size:12px;color:var(--ink-2);font-weight:600;list-style:none}
@@ -2616,7 +2511,7 @@ var KINFO = {{
         s: '突破若伴隨爆量較可信；上漲量增、回檔量縮為健康型態；高檔爆量卻滯漲需留意出貨。' }},
   resid: {{ t: '殘差動能 (Residual Momentum)', d: '剃除大盤(SPY)與類股 ETF 兩個 Beta 後的純個股超額報酬 ε，衡量個股不受大盤 / 類股帶動的自身相對強弱。',
         c: '滾動 252 日雙因子回歸 r=α+β₁·SPY+β₂·類股+ε，取殘差 ε（刻意不扣 α̂，防 look-ahead）。藍線 Z(21日)＝近 21 日 ε 標準化過熱度；琥珀線 rMOM＝12-1 月殘差動能(IR 標準化)；柱＝α年化＝20 日滾動 mean(ε)×252×100（右軸 %）。',
-        s: 'rMOM>+1 為強勢、<−1 弱勢；強勢股 Z 跌破 −2（下方綠區）為回檔買點（本系統最重要訊號），Z 升破 +2（上方紅區）為短線過熱宜減碼；α 柱由紅轉綠代表近期超額報酬轉正。' }},
+        s: '訊號分類 (依 rMOM × Z_short，標題以 [..] 標示)：① 強勢回檔 rMOM≥+1 且 Z≤−2 → 強勢股回檔，本系統最重要的加碼黃金點；② 強勢過熱 rMOM≥+1 且 Z≥+2 → 短線過熱，部分調節；③ 強勢 rMOM≥+1 → 順勢續抱；④ 弱勢 rMOM≤−1 → 動能轉弱，減碼/退出；⑤ 中性 −1<rMOM<+1 → 觀望；⑥ 無訊號 rMOM 無效或 R²<0.20 → 不採信回歸。α 柱由紅轉綠代表近期超額報酬轉正。買賣決策請自行綜合基本面與部位風險判斷。' }},
   kd: {{ t: 'KD 隨機指標', d: '衡量收盤價在近期高低區間的相對位置，屬擺盪指標，適合判斷超買超賣與轉折。',
         c: 'RSV =(收盤−n日最低)/(n日最高−n日最低)×100，K＝RSV 平滑、D＝K 平滑（參數 14,3,3）。',
         s: 'K 上穿 D 為買、下穿為賣；20 以下超賣、80 以上超買；低檔黃金交叉最佳，高檔死亡交叉宜減碼。' }},
@@ -2697,18 +2592,13 @@ def main():
                 print(f"  ⚠️ {tk} 錯誤: {exc}")
 
     print("\n[2/5] 計算殘差動能 (滾動雙因子回歸 vs SPY/類股 ETF)...")
-    narrative = load_narrative(list(stocks_data.keys()))
     needed_etfs = {sector_etf_for(fund_data.get(tk, {})) for tk in stocks_data}
     needed_etfs.discard(None)
     factors = fetch_factor_closes(needed_etfs)
     mkt_close = factors.get(RM_MARKET_ETF)
     for tk, record in stocks_data.items():
         record["resid"] = None
-        mode = narrative.get(tk, NARRATIVE_DEFAULT)
-        record["narrative_mode"] = mode
         if mkt_close is None:
-            # 無法回歸 → signal 視為 no_signal 推導 action（敘事仍生效）
-            record["action"] = derive_action(mode, "no_signal")
             continue
         try:
             sec_sym = sector_etf_for(fund_data.get(tk, {}))
@@ -2716,16 +2606,10 @@ def main():
                 sec_sym = None
             rm = compute_residual_momentum(record["close_full"], mkt_close, factors.get(sec_sym))
             rm["sector_etf"] = sec_sym if sec_sym in factors else None
-            # 敘事模式疊加：signal 維持客觀不動，僅推導 action
-            action = derive_action(mode, rm["signal"])
-            rm["narrative_mode"] = mode
-            rm["action"] = action
             record["resid"] = rm
-            record["action"] = action
             rm_txt = f"{rm['rmom']:.2f}" if pd.notna(rm["rmom"]) else "-"
-            print(f"  ✓ {tk} vs SPY{'+' + sec_sym if rm['sector_etf'] else ''} | rMOM {rm_txt} · {RM_SIGNAL_ZH[rm['signal']]} · [{MODE_LABEL[mode]}→{ACTION_LABEL[action]}]")
+            print(f"  ✓ {tk} vs SPY{'+' + sec_sym if rm['sector_etf'] else ''} | rMOM {rm_txt} · {RM_SIGNAL_ZH[rm['signal']]}")
         except Exception as e:
-            record["action"] = derive_action(mode, "no_signal")
             print(f"  ⚠️ {tk} 殘差動能計算失敗: {e}")
     write_residual_series_json(stocks_data)
 
