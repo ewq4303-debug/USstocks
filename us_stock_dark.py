@@ -81,6 +81,15 @@ RM_SIGNAL_ZH = {
     "overheat": "強勢過熱", "pullback": "強勢回檔", "strong": "強勢",
     "weak": "弱勢", "neutral": "中性", "no_signal": "無訊號",
 }
+# signal → 客觀建議（純由 rMOM×Z_short 推導，非手動標記），顯示在指標標題旁
+RM_ACTION_ZH = {
+    "pullback": "加碼黃金點", "overheat": "部分調節", "strong": "順勢續抱",
+    "weak": "減碼/退出", "neutral": "觀望", "no_signal": "不採信回歸",
+}
+RM_ACTION_COLOR = {
+    "pullback": "#22d39a", "overheat": "#e0a83c", "strong": "#22d39a",
+    "weak": "#ff525b", "neutral": "#8b95a5", "no_signal": "#5d6675",
+}
 
 # =========================================================
 # IBKR 持股 / 交易快照
@@ -1393,6 +1402,7 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
         rmom_vals = [None] * len(dates)
         ra_vals = [None] * len(dates)
         resid_title = "殘差動能 (資料不足)"
+        resid_act_color = "#8b95a5"
         if resid:
             z_map = {d.date(): v for d, v in resid["z_short"].items()}
             rm_map = {d.date(): v for d, v in resid["rmom_series"].items()}
@@ -1413,7 +1423,11 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
             # 統一口徑：年化百分比 = mean(ε)×252×100
             a_txt = f"α年化 {ra_last*252*100:+.1f}%" if pd.notna(ra_last) else "α年化 -"
             rm_txt = f"rMOM {resid['rmom']:.2f}" if pd.notna(resid["rmom"]) else "rMOM -"
-            resid_title = f"殘差動能 vs {fct} · {b_txt} {r2_txt} · {a_txt} · {rm_txt} [{RM_SIGNAL_ZH[resid['signal']]}]"
+            sig = resid["signal"]
+            resid_act_color = RM_ACTION_COLOR.get(sig, "#8b95a5")
+            # [訊號] → 客觀建議（建議部分以富文本 {a|..} 上色）
+            resid_title = (f"殘差動能 vs {fct} · {b_txt} {r2_txt} · {a_txt} · {rm_txt} "
+                           f"[{RM_SIGNAL_ZH[sig]}] " + "{a|→ " + RM_ACTION_ZH.get(sig, "") + "}")
         ra_color = ["rgba(34,211,154,.45)" if (v is not None and v >= 0) else "rgba(255,82,91,.45)" for v in ra_vals]
 
         # tooltip 只顯示游標所屬副圖 (grid) 的 series；價格 2 位小數、α年化 %、量千分位。
@@ -1437,7 +1451,7 @@ var kc_{tk} = echarts.init(document.getElementById('kline_{tk}'));
 kc_{tk}.setOption({{
   title: [
     {{ text: 'K線 · 均線 · 成交量', left: '6%', top: '1%', textStyle: {{fontSize: 12, color: '{T["title"]}'}} }},
-    {{ text: '{resid_title}', left: '6%', top: '45%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
+    {{ text: '{resid_title}', left: '6%', top: '45%', textStyle: {{fontSize: 11, color: '{T["title"]}', rich: {{ a: {{ color: '{resid_act_color}', fontSize: 11, fontWeight: 'bold' }} }} }} }},
     {{ text: 'KD(14,3,3)', left: '6%', top: '60.5%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
     {{ text: 'MACD(12,26,9)', left: '6%', top: '76%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
   ],
