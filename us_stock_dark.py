@@ -1347,7 +1347,7 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
   grid: [{{ left: '6%', right: '6%', top: '8%', bottom: '14%' }}],
   xAxis: [{{ type: 'category', data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}],
   yAxis: [
-    {{ type: 'log', logBase: 10, scale: true, splitNumber: 5, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0);}}}} }},
+    {{ type: 'log', logBase: 10, min: function(v){{return v.min*0.97;}}, max: function(v){{return v.max*1.03;}}, splitNumber: 4, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, minorTick: {{show: true, splitNumber: 10}}, minorSplitLine: {{show: true, lineStyle: {{color: '{T["split_line"]}', opacity: 0.4}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', showMinLabel: true, showMaxLabel: true, formatter: function(v){{return v.toFixed(0);}}}} }},
     {{ scale: true, show: false, max: function(v){{return Math.max(v.max*6,1);}} }}
   ],
   dataZoom: [
@@ -1509,7 +1509,7 @@ kc_{tk}.setOption({{
     {{ type: 'category', gridIndex: 3, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: false}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}
   ],
   yAxis: [
-    {{ type: 'log', logBase: 10, scale: true, gridIndex: 0, splitNumber: 5, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0);}}}} }},
+    {{ type: 'log', logBase: 10, gridIndex: 0, min: function(v){{return v.min*0.97;}}, max: function(v){{return v.max*1.03;}}, splitNumber: 4, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, minorTick: {{show: true, splitNumber: 10}}, minorSplitLine: {{show: true, lineStyle: {{color: '{T["split_line"]}', opacity: 0.4}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', showMinLabel: true, showMaxLabel: true, formatter: function(v){{return v.toFixed(0);}}}} }},
     {{ scale: true, gridIndex: 0, show: false, max: function(v){{return Math.max(v.max*6,1);}} }},
     {{ scale: false, gridIndex: 1, min: 0, max: 100, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     {{ scale: true, gridIndex: 2, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
