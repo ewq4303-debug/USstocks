@@ -1,0 +1,113 @@
+{
+  "as_of": "2026-06-18",
+  "lookback": {
+    "start": "2026-06-04",
+    "end": "2026-06-18",
+    "n_days": 10,
+    "years": 0.0397
+  },
+  "risk_free": {
+    "mode": "tbill_3m",
+    "annual_rate": 0.036186,
+    "fallback_used": false
+  },
+  "cashflow_adjusted": false,
+  "portfolio": {
+    "ann_return": 0.8684,
+    "ann_vol": 0.7824,
+    "cagr": 0.8055,
+    "max_drawdown": -0.1016,
+    "sharpe": {
+      "value": 1.0636,
+      "se": 5.0256,
+      "ci95": [
+        -8.7866,
+        10.9138
+      ]
+    },
+    "sortino": 1.6079
+  },
+  "benchmarks": {
+    "SPY": {
+      "sharpe": -1.2962,
+      "ann_return": -0.2585,
+      "ann_vol": 0.2274
+    },
+    "SOXX": {
+      "sharpe": 1.9568,
+      "ann_return": 1.9378,
+      "ann_vol": 0.9718
+    },
+    "QQQ": {
+      "sharpe": 0.1053,
+      "ann_return": 0.0805,
+      "ann_vol": 0.4211
+    }
+  },
+  "information_ratio": {
+    "benchmark": "SOXX",
+    "ir": -4.0868,
+    "t_stat": -0.8141,
+    "significant": false,
+    "ann_active_return": -1.0695,
+    "tracking_error": 0.2617,
+    "note": "IR=-4.09、樣本 0.0 年 → t≈-0.81，尚在雜訊範圍"
+  },
+  "treynor": {
+    "benchmark": "SPY",
+    "beta": 3.0404,
+    "value": 0.2737,
+    "warning": "組合未充分分散，β 未涵蓋特異風險，此值偏樂觀，僅供參考"
+  },
+  "rolling_sharpe": {
+    "window_days": 252,
+    "dates": [
+      "2026-06-05",
+      "2026-06-08",
+      "2026-06-09",
+      "2026-06-10",
+      "2026-06-11",
+      "2026-06-12",
+      "2026-06-15",
+      "2026-06-16",
+      "2026-06-17",
+      "2026-06-18"
+    ],
+    "portfolio": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "SPY": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "SOXX": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  }
+}
