@@ -22,8 +22,10 @@
     防 look-ahead（係數只用 t-1 前資料）、ε 不扣 α̂
   - `write_residual_series_json()` 輸出 `docs/data/series/{TICKER}.json`
     （dates/cum_alpha/ma20/ma60/rolling_alpha/z_short/rmom/price/beta_mkt/r2，NaN→null）
-    訊號分類（pullback/overheat/strong/weak/neutral/no_signal）純由 rMOM×Z_short 客觀推導，
-    進出邏輯規則寫在殘差動能 `i` 說明（`KINFO.resid`），系統不做手動標記/動作推導。
+    訊號分類（pullback/overheat/strong/weak/neutral/no_signal）純由 rMOM×Z_short 客觀推導；
+    標題在 `[訊號]` 後以富文本 `{a|→ 建議}`（`RM_ACTION_ZH`/`RM_ACTION_COLOR`）顯示客觀建議
+    （加碼黃金點/部分調節/順勢續抱/減碼退出/觀望/不採信回歸），完整規則見 `i` 說明（`KINFO.resid`）；
+    系統不做手動標記/動作推導。
 - 持股明細：讀 `ibkr_data.json` 顯示 IBKR 帳戶總覽與持股表
   - 帳戶淨值折線（`compute_portfolio_history()` 讀 `nav_history.json` 真實每日 NAV，
     從有記錄第一天起取**累積對數報酬** 100·ln(Vt/V0)（`_cum_ln`，起點 0）；IBKR 無歷史
