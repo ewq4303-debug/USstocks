@@ -47,6 +47,20 @@
   - 圖表 JS 由 `generate_holdings_chart_script()` 產生，div 隱藏於分頁，靠 `switchTab` 的
     `resizeAllCharts` 觸發 resize
 - K 線進出標記：依 `ibkr_data.json` 的交易，按「每日×方向」VWAP 標在圖上，可勾選顯示/隱藏
+- 組合績效評估（分頁「組合績效」）：風險調整後報酬比較自有組合 vs 大盤/類股基準
+  - `compute_metrics.py`：排在 NAV pipeline 之後跑（Actions），讀 `nav_history.json` 真實 NAV 日報酬
+    + yfinance（SPY/SOXX/QQQ/^IRX）→ 輸出 `docs/data/portfolio_metrics.json`。前端純讀 JSON 不算數值。
+    指標分工：**Sharpe(年化)** 門面（+ Lo 2002 iid 信賴帶 ci95）、**Information Ratio vs SOXX** 選股能力
+    （t_stat≡IR×√年數，|t|>2 顯著）、Sortino 加分、**Treynor 僅註腳**（強制帶警語、不得做主卡片）。
+    年化因子一律 252；Rf 用 ^IRX/100（`rf_mode` 可切 `tbill_3m`/`zero`，抓取失敗退回 zero 並標 `fallback_used`）。
+  - **§4 現金流污染（最高優先）**：`nav_history.json` 只有 nav+cash 餘額、**無外部 flow/TWR 欄位**，
+    故 `r_t=NAV_t/NAV_{t-1}-1` 會被入金/出金污染 → 預設 `cashflow_adjusted:false`，儀表板顯眼警示。
+    `nav_to_returns` 已預留校正路徑：series entry 一旦帶 `twr`（首選）或 `flow`（次選）即自動啟用並標 true。
+  - 渲染 `generate_perf_section()`（卡片列 Sharpe/IR/CAGR/MDD + 比較表 + Treynor 摺疊註腳）
+    + `generate_perf_chart_script()`（Rolling Sharpe 252 日滾動，portfolio/SPY/SOXX 多序列；不足窗回 null，
+      全 null 時改顯「資料不足」註記）；NaN 一律轉 None（`allow_nan=False`）以免破壞瀏覽器 `JSON.parse`。
+  - 自我驗收：`python compute_metrics.py --selftest`（無需網路，涵蓋 §9：t_stat 恆等式、IR 退化 null 分支、
+    NAV→報酬三路徑、rolling null 數、SPY 波動 sanity）。
 
 ## IBKR 快照
 - `ibkr_data.json`：IBKR 持股/交易快照（含 `fetched_at`）。Actions 無法直連券商，故用快照檔。
@@ -57,3 +71,4 @@
 - 綠漲紅跌 (US convention)。
 - 改完用 `python -c "import ast;ast.parse(open('us_stock_dark.py').read())"` 檢查語法；
   可用合成資料對 `build_macro_axis` / `build_trade_markers` / `generate_holdings_section` 做單元測試。
+  績效模組另有 `python compute_metrics.py --selftest`（無網路）驗證數值正確性。
