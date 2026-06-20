@@ -39,6 +39,11 @@ jobs:
         run: |
           python fetch_ibkr_nav.py
 
+      - name: Compute Portfolio Risk-Adjusted Metrics
+        continue-on-error: true   # 績效指標計算失敗不應擋住整個儀表板建置
+        run: |
+          python compute_metrics.py
+
       - name: Run US Stock Monitor
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

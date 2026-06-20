@@ -98,6 +98,7 @@ RM_ACTION_COLOR = {
 # =========================================================
 IBKR_DATA_FILE = "ibkr_data.json"
 NAV_HISTORY_FILE = "nav_history.json"  # 每日帳戶淨值累積檔 (由 fetch_ibkr_nav.py 經 Flex Web Service 累積)
+PORTFOLIO_METRICS_FILE = f"{OUTPUT_DIR}/data/portfolio_metrics.json"  # 風險調整後報酬 (由 compute_metrics.py 產生)
 
 def load_nav_history():
     """讀取每日帳戶淨值累積檔，回傳 [{date, nav}, ...] (依日期升冪)，無檔則回空 list。
@@ -2514,6 +2515,196 @@ def generate_holdings_section(ibkr, has_hist=False, has_posratio=False, has_comp
       </div>
     </div>"""
 
+def load_portfolio_metrics():
+    """讀 docs/data/portfolio_metrics.json (由 compute_metrics.py 產生)。無檔/壞檔回 None。"""
+    if not os.path.exists(PORTFOLIO_METRICS_FILE):
+        return None
+    try:
+        with open(PORTFOLIO_METRICS_FILE, "r", encoding="utf-8") as f:
+            pm = json.load(f)
+        return pm if isinstance(pm, dict) and pm.get("portfolio") else None
+    except Exception as e:
+        print(f"  ⚠️ 讀取 portfolio_metrics 失敗: {e}")
+        return None
+
+
+def generate_perf_section(pm):
+    """組合績效評估頁：風險調整後報酬卡片 + 比較表 + Rolling Sharpe 圖 + Treynor 註腳 (摺疊)。
+    指標優先序 (左→右)：Sharpe(門面) → IR vs SOXX(選股能力) → CAGR → Max Drawdown。"""
+    def f2(v, suffix="", dec=2):
+        return f"{v:.{dec}f}{suffix}" if isinstance(v, (int, float)) else "—"
+    def pct(v, dec=1, sign=False):
+        if not isinstance(v, (int, float)):
+            return "—"
+        s = "+" if (sign and v >= 0) else ""
+        return f"{s}{v*100:.{dec}f}%"
+
+    port = pm.get("portfolio", {})
+    sh = port.get("sharpe", {}) or {}
+    ir = pm.get("information_ratio", {}) or {}
+    tre = pm.get("treynor", {}) or {}
+    lb = pm.get("lookback", {}) or {}
+    rf = pm.get("risk_free", {}) or {}
+    years = lb.get("years")
+
+    # 警示橫幅：現金流污染 (§4，最高優先) / Rf 退回 / 樣本偏短
+    warns = []
+    if pm.get("cashflow_adjusted") is False:
+        warns.append('<b style="color:var(--down)">⚠ 報酬未做現金流校正</b>：NAV 來源無 TWR/flow 欄位，'
+                     '入金/出金會被當成報酬，Sharpe/IR 可能失真，數字僅供參考。')
+    if rf.get("fallback_used"):
+        warns.append(f'無風險利率抓取失敗，已退回 Rf=0 模式。')
+    if isinstance(years, (int, float)) and years < 1:
+        warns.append(f'樣本偏短 (約 {years:.2f} 年)，信賴帶寬、Rolling Sharpe 視窗可能不足，請審慎解讀。')
+    warn_html = ("".join(
+        f'<div style="font-size:11.5px;color:var(--ink-2);background:rgba(255,82,91,.08);'
+        f'border:1px solid rgba(255,82,91,.3);border-radius:8px;padding:9px 12px;margin-bottom:10px;line-height:1.6">{w}</div>'
+        for w in warns))
+
+    # ── 指標卡片 (§7.1) ──
+    rf_label = "Rf=0" if rf.get("mode") == "zero" else f"Rf {pct(rf.get('annual_rate'), 2)}"
+    ci = sh.get("ci95") or [None, None]
+    ci_txt = (f'± {f2((ci[1]-ci[0])/2)}　[{f2(ci[0])}, {f2(ci[1])}]'
+              if isinstance(ci[0], (int, float)) and isinstance(ci[1], (int, float)) else "—")
+    sharpe_card = (
+        f'<div class="metric accent"><div class="label">Sharpe (年化) · {rf_label}</div>'
+        f'<div class="value num">{f2(sh.get("value"))}</div>'
+        f'<div class="change" style="color:var(--ink-3)">{ci_txt}</div></div>')
+
+    sig = ir.get("significant")
+    badge_col = ("var(--up)" if sig else "var(--ink-3)")
+    badge_txt = ("顯著 ✓" if sig else "未顯著")
+    ir_val = ir.get("ir")
+    ir_cls = "up" if isinstance(ir_val, (int, float)) and ir_val > 0 else ("down" if isinstance(ir_val, (int, float)) and ir_val < 0 else "")
+    ir_card = (
+        f'<div class="metric {ir_cls}"><div class="label">Info Ratio vs {ir.get("benchmark","SOXX")}</div>'
+        f'<div class="value num">{f2(ir_val)}</div>'
+        f'<div class="change"><span>t≈{f2(ir.get("t_stat"))}</span>'
+        f'<span class="chip" style="background:rgba(255,255,255,.05);color:{badge_col};border:1px solid {badge_col}">{badge_txt}</span></div>'
+        f'<div style="font-size:10.5px;color:var(--ink-3);margin-top:7px;line-height:1.5">{ir.get("note","")}</div></div>')
+
+    cagr_v = port.get("cagr")
+    cagr_cls = "up" if isinstance(cagr_v, (int, float)) and cagr_v >= 0 else "down"
+    cagr_card = (
+        f'<div class="metric {cagr_cls}"><div class="label">CAGR (幾何年化)</div>'
+        f'<div class="value num {cagr_cls}">{pct(cagr_v, 1, True)}</div>'
+        f'<div class="change" style="color:var(--ink-3)">年化報酬 {pct(port.get("ann_return"),1,True)} · 波動 {pct(port.get("ann_vol"),1)}</div></div>')
+
+    mdd_card = (
+        f'<div class="metric down"><div class="label">Max Drawdown</div>'
+        f'<div class="value num down">{pct(port.get("max_drawdown"), 1, True)}</div>'
+        f'<div class="change" style="color:var(--ink-3)">Sortino {f2(port.get("sortino"))}</div></div>')
+
+    cards = sharpe_card + ir_card + cagr_card + mdd_card
+
+    # ── 比較表 (§7.2)：組合 vs SPY/SOXX/QQQ，組合列高亮 ──
+    def srow(name, sharpe, annr, annv, highlight=False):
+        style = ' style="background:rgba(77,127,255,.08)"' if highlight else ""
+        nm = f'<b>{name}</b>' if highlight else name
+        return (f'<tr{style}><td>{nm}</td><td>{f2(sharpe)}</td>'
+                f'<td>{pct(annr,1,True)}</td><td>{pct(annv,1)}</td></tr>')
+    bm = pm.get("benchmarks", {}) or {}
+    cmp_rows = srow("我的組合", sh.get("value"), port.get("ann_return"), port.get("ann_vol"), True)
+    for tk in ("SPY", "SOXX", "QQQ"):
+        b = bm.get(tk, {}) or {}
+        cmp_rows += srow(tk, b.get("sharpe"), b.get("ann_return"), b.get("ann_vol"))
+    compare_table = f"""
+    <div class="card">
+      <div class="card-title"><span>風險調整後報酬比較</span>
+        <span style="font-size:11px;color:var(--ink-3);font-weight:500">{lb.get('start','')} ~ {lb.get('end','')} · {lb.get('n_days','')} 交易日</span></div>
+      <div style="overflow-x:auto">
+      <table class="dtable">
+        <tr><th>標的</th><th>Sharpe</th><th>年化報酬</th><th>年化波動</th></tr>
+        {cmp_rows}
+      </table></div>
+    </div>"""
+
+    # ── Rolling Sharpe 圖 (§7.3) ──
+    rs = pm.get("rolling_sharpe") or {}
+    has_rolling = any(
+        any(v is not None for v in (rs.get(k) or []))
+        for k in ("portfolio", "SPY", "SOXX"))
+    rolling_body = (
+        '<div id="perf_rolling_chart" class="chart-box" style="height:300px;background:transparent;border:none"></div>'
+        '<div style="font-size:11px;color:var(--ink-3);margin-top:6px;line-height:1.6">'
+        '看 Sharpe 的「穩定度」而非單點。視窗不足 252 日的區間留空白；可框選縮放。</div>'
+        if has_rolling else
+        '<div style="font-size:12px;color:var(--ink-3);padding:24px 4px;line-height:1.7">'
+        f'樣本不足 {rs.get("window_days", 252)} 交易日，尚無法計算滾動 Sharpe，待資料累積後顯示。</div>')
+    rolling_card = f"""
+    <div class="card">
+      <div class="card-title"><span>Rolling Sharpe (252 日滾動年化)</span></div>
+      {rolling_body}
+    </div>"""
+
+    # ── Treynor 註腳 (§7.4)，預設摺疊，警語直接印旁邊 ──
+    treynor_card = f"""
+    <details class="legend" style="margin-top:4px">
+      <summary>進階 / 註腳：Treynor (僅供參考，預設摺疊)</summary>
+      <div style="font-size:12px;color:var(--ink-2);padding:10px 2px 2px;line-height:1.7">
+        <span style="font-family:var(--mono)">Treynor = {f2(tre.get("value"))}　β(vs {tre.get("benchmark","SPY")}) = {f2(tre.get("beta"))}</span><br>
+        <span style="color:var(--down)">⚠ {tre.get("warning","")}</span>
+      </div>
+    </details>"""
+
+    return f"""<div class="section-head"><span class="eyebrow">Portfolio Performance</span><h2>組合績效評估</h2></div>
+    {warn_html}
+    <div class="metrics metrics-4">{cards}</div>
+    {compare_table}
+    {rolling_card}
+    {treynor_card}
+    <div style="font-size:11px;color:var(--ink-3);margin-top:12px;line-height:1.6">
+      年化因子 252；Rf 模式 <code>{rf.get('mode','—')}</code>。Sharpe 信賴帶採 Lo (2002) iid 近似；
+      IR 的 t 值為 IR×√年數 (≡ mean(主動報酬)/std×√T)，|t|&gt;2 視為顯著。
+      資料於建置時讀取 <code>portfolio_metrics.json</code> (由 <code>compute_metrics.py</code> 產生)。
+    </div>"""
+
+
+def generate_perf_chart_script(pm):
+    """組合績效頁的 Rolling Sharpe 多序列折線 (portfolio + SPY + SOXX)，沿用暗色主題與 dataZoom。"""
+    T = THEME
+    rs = (pm or {}).get("rolling_sharpe") or {}
+    dates = rs.get("dates") or []
+    if not dates:
+        return ""
+    series = []
+    cols = {"portfolio": T["up"], "SPY": "#6f9bff", "SOXX": "#b07bff"}
+    names = {"portfolio": "我的組合", "SPY": "SPY", "SOXX": "SOXX"}
+    legend = []
+    for key in ("portfolio", "SPY", "SOXX"):
+        arr = rs.get(key)
+        if not arr or all(v is None for v in arr):
+            continue
+        legend.append(names[key])
+        series.append(
+            f"{{ name: {json.dumps(names[key])}, type: 'line', data: {json.dumps(arr)}, "
+            f"smooth: true, showSymbol: false, connectNulls: false, "
+            f"lineStyle: {{width: {2.2 if key=='portfolio' else 1.6}, color: '{cols[key]}'}}, "
+            f"itemStyle: {{color: '{cols[key]}'}} }}")
+    if not series:
+        return ""
+    return f"""
+(function(){{
+  var el = document.getElementById('perf_rolling_chart');
+  if (!el) return;
+  var rc = echarts.init(el);
+  rc.setOption({{
+    legend: {{ data: {json.dumps(legend, ensure_ascii=False)}, top: '2%', right: '4%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+    tooltip: {{ trigger: 'axis', axisPointer: {{type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}}}},
+      backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1,
+      textStyle: {{color: '{T["tooltip_text"]}', fontSize: 11, fontFamily: 'IBM Plex Mono'}},
+      valueFormatter: function(v){{ return v==null ? '-' : (+v).toFixed(2); }} }},
+    grid: {{ left: '7%', right: '5%', top: '16%', bottom: '12%' }},
+    xAxis: {{ type: 'category', data: {json.dumps(dates)}, boundaryGap: false, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+    yAxis: {{ type: 'value', scale: true, name: 'Sharpe', nameTextStyle: {{fontSize: 9, color: '{T["axis_label"]}'}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLine: {{show: false}} }},
+    dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
+    series: [{",".join(series)}]
+  }});
+  window.addEventListener('resize', function(){{ rc.resize(); }});
+}})();
+"""
+
+
 def generate_html(stocks_data, options_data, fund_data, md):
     update_time = now_et().strftime("%Y-%m-%d %H:%M")
     market_section = generate_market_section(md)
@@ -2531,6 +2722,11 @@ def generate_html(stocks_data, options_data, fund_data, md):
     holdings_chart_script = (
         generate_holdings_chart_script(port_hist, build_alloc_data(ibkr.get("positions", [])))
         if has_ibkr else "")
+
+    perf_metrics = load_portfolio_metrics()
+    has_perf = bool(perf_metrics)
+    perf_section = generate_perf_section(perf_metrics) if has_perf else ""
+    perf_chart_script = generate_perf_chart_script(perf_metrics) if has_perf else ""
 
     sidebar_items, stock_cards = "", ""
     first = True
@@ -2554,6 +2750,10 @@ def generate_html(stocks_data, options_data, fund_data, md):
                         if has_ibkr else "")
     holdings_tab_content = (f'<div id="tab-holdings" class="tab-content">{holdings_section}</div>'
                             if has_ibkr else "")
+    perf_tab_btn = ('<button class="tab-btn" onclick="switchTab(\'tab-perf\', this)">組合績效</button>'
+                    if has_perf else "")
+    perf_tab_content = (f'<div id="tab-perf" class="tab-content">{perf_section}</div>'
+                        if has_perf else "")
     trade_toggle = ('''
         <div class="trade-toggle">
           <label class="tm-switch"><input type="checkbox" id="tmChk" checked onchange="toggleTradeMarkers(this)"> 顯示進出標記</label>
@@ -2584,6 +2784,7 @@ def generate_html(stocks_data, options_data, fund_data, md):
       <button class="tab-btn" onclick="switchTab('tab-rating', this)">綜合評等</button>
       <button class="tab-btn" onclick="switchTab('tab-stocks', this)">追蹤個股分析</button>
       {holdings_tab_btn}
+      {perf_tab_btn}
   </div>
   <div id="tab-market" class="tab-content active">{market_section}</div>
   <div id="tab-rating" class="tab-content">{rating_table}</div>
@@ -2599,6 +2800,7 @@ def generate_html(stocks_data, options_data, fund_data, md):
       </div>
   </div>
   {holdings_tab_content}
+  {perf_tab_content}
 </div>
 <button id="backToTop" onclick="window.scrollTo({{top:0,behavior:'smooth'}});" style="display:none;position:fixed;bottom:30px;right:30px;background:linear-gradient(135deg,#3a63d8,#4d7fff);color:#fff;border:none;border-radius:50px;padding:10px 18px;cursor:pointer;box-shadow:0 0 18px rgba(77,127,255,.5);z-index:9999;font-weight:bold;font-size:13px">↑ 返回頂部</button>
 <div id="iModal" class="imodal" onclick="if(event.target===this)closeKInfo()">
@@ -2615,6 +2817,7 @@ var GAS_URL = '{GAS_URL}';
 var TRIGGER_URL = '{TRIGGER_URL}';
 {chart_scripts}
 {holdings_chart_script}
+{perf_chart_script}
 
 function resizeAllCharts(){{ setTimeout(function(){{ window.dispatchEvent(new Event('resize')); }}, 50); }}
 
