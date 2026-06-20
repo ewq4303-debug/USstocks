@@ -1321,15 +1321,14 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
     ma20 = [d["ma20"] for d in series]
     has_vol = any(v and v > 0 for v in vol)
 
-    # Supertrend 拆多空兩條 (切換點補值避免斷裂)
+    # Supertrend 拆多空兩條 (上下界不相連, 切換點直接斷開)
     st_up, st_dn = [], []
     for i, d in enumerate(series):
         cur, v = d["st_dir"], d["st"]
-        prev = series[i - 1]["st_dir"] if i > 0 else cur
         if cur == 1:
-            st_up.append(v); st_dn.append(v if prev == -1 else None)
+            st_up.append(v); st_dn.append(None)
         elif cur == -1:
-            st_dn.append(v); st_up.append(v if prev == 1 else None)
+            st_dn.append(v); st_up.append(None)
         else:
             st_up.append(None); st_dn.append(None)
 
@@ -1348,7 +1347,7 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
   grid: [{{ left: '6%', right: '6%', top: '8%', bottom: '14%' }}],
   xAxis: [{{ type: 'category', data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}],
   yAxis: [
-    {{ scale: true, splitNumber: 5, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0);}}}} }},
+    {{ type: 'log', logBase: 10, scale: true, splitNumber: 5, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0);}}}} }},
     {{ scale: true, show: false, max: function(v){{return Math.max(v.max*6,1);}} }}
   ],
   dataZoom: [
@@ -1358,8 +1357,8 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
   series: [
     {{ name: 'K線', type: 'candlestick', yAxisIndex: 0, data: {json.dumps(ohlc)}, itemStyle: {{color: '{T["up"]}', color0: '{T["down"]}', borderColor: '{T["up"]}', borderColor0: '{T["down"]}'}} }},
     {{ name: 'MA20', type: 'line', yAxisIndex: 0, data: {json.dumps(ma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
-    {{ name: 'Supertrend↑', type: 'line', yAxisIndex: 0, data: {json.dumps(st_up)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["up"]}'}} }},
-    {{ name: 'Supertrend↓', type: 'line', yAxisIndex: 0, data: {json.dumps(st_dn)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["down"]}'}} }}{vol_series}
+    {{ name: 'Supertrend↑', type: 'line', yAxisIndex: 0, data: {json.dumps(st_up)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, type: 'dashed', color: '{T["up"]}'}} }},
+    {{ name: 'Supertrend↓', type: 'line', yAxisIndex: 0, data: {json.dumps(st_dn)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, type: 'dashed', color: '{T["down"]}'}} }}{vol_series}
   ]
 }});
 window.addEventListener('resize', function(){{ {var}.resize(); }});
@@ -1416,17 +1415,16 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
         macd_sig = [round(v, 3) if pd.notna(v) else None for v in df["MACD_Signal"].tolist()]
         macd_hist = [round(v, 3) if pd.notna(v) else None for v in df["MACD_Hist"].tolist()]
         macd_hist_color = [T["up"] if (v is not None and v >= 0) else T["down"] for v in macd_hist]    
-        # Supertrend 拆多空兩條 (切換點補值避免斷裂)
+        # Supertrend 拆多空兩條 (上下界不相連, 切換點直接斷開)
         st_vals = [round(v, 2) if pd.notna(v) else None for v in df["ST"].tolist()]
         st_dir = [int(v) if pd.notna(v) else 0 for v in df["ST_DIR"].tolist()]
         st_up, st_dn = [], []
         for i in range(len(st_vals)):
             cur, v = st_dir[i], st_vals[i]
-            prev = st_dir[i - 1] if i > 0 else cur
             if cur == 1:
-                st_up.append(v); st_dn.append(v if prev == -1 else None)
+                st_up.append(v); st_dn.append(None)
             elif cur == -1:
-                st_dn.append(v); st_up.append(v if prev == 1 else None)
+                st_dn.append(v); st_up.append(None)
             else:
                 st_up.append(None); st_dn.append(None)
 
@@ -1511,7 +1509,7 @@ kc_{tk}.setOption({{
     {{ type: 'category', gridIndex: 3, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: false}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}
   ],
   yAxis: [
-    {{ scale: true, gridIndex: 0, splitNumber: 5, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0);}}}} }},
+    {{ type: 'log', logBase: 10, scale: true, gridIndex: 0, splitNumber: 5, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0);}}}} }},
     {{ scale: true, gridIndex: 0, show: false, max: function(v){{return Math.max(v.max*6,1);}} }},
     {{ scale: false, gridIndex: 1, min: 0, max: 100, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     {{ scale: true, gridIndex: 2, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
@@ -1533,8 +1531,8 @@ kc_{tk}.setOption({{
     {{ name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
     {{ name: 'MA60', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma60)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
     {{ name: 'MA200', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma200)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma200"]}'}} }},
-    {{ name: 'Supertrend↑', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_up)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["up"]}'}} }},
-    {{ name: 'Supertrend↓', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_dn)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, color: '{T["down"]}'}} }},
+    {{ name: 'Supertrend↑', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_up)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, type: 'dashed', color: '{T["up"]}'}} }},
+    {{ name: 'Supertrend↓', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(st_dn)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, type: 'dashed', color: '{T["down"]}'}} }},
     {{ name: '成交量', type: 'bar', xAxisIndex: 0, yAxisIndex: 1, data: {json.dumps(vol)}, itemStyle: {{color: function(p){{return {json.dumps(vol_color)}[p.dataIndex];}}}} }},
     {{ name: 'K', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(k_vals)}, smooth: true, showSymbol: false, lineStyle: {{width: 1.2, color: '{T["rsi"]}'}},
        markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 80, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.8}}}}, {{yAxis: 20, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }} }},
