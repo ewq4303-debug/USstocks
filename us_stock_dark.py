@@ -1307,6 +1307,44 @@ def generate_market_section(md: dict):
 # =========================================================
 # 圖表腳本
 # =========================================================
+def log_price_ticks(lo, hi, target=6):
+    """在對數價格軸上挑選『整數好讀』的刻度值 (回傳由小到大的 list)。
+    取線性的整數刻度 (1000/2000/2500/5000…) 但畫在 log 軸上,
+    刻度間距自然不等 (對數座標特性)。"""
+    try:
+        lo = float(lo); hi = float(hi)
+    except (TypeError, ValueError):
+        return []
+    if not (lo > 0 and hi > lo):
+        return []
+    span = hi - lo
+    raw = span / max(target, 1)
+    mag = 10 ** math.floor(math.log10(raw)) if raw > 0 else 1
+    step = mag
+    for m in (1, 2, 2.5, 5, 10):
+        if span / (m * mag) <= target * 1.5:
+            step = m * mag
+            break
+    start = math.ceil(lo / step) * step
+    ticks, v = [], start
+    while v <= hi + 1e-9:
+        ticks.append(round(v, 2) if step < 1 else round(v))
+        v += step
+    return ticks
+
+
+def _kline_price_markline(ticks, T):
+    """產生對數價格軸的自訂格線 + 標籤 markLine 設定 (整數刻度, 對數間距)。"""
+    if not ticks:
+        return ""
+    data = ", ".join(f"{{yAxis: {t}}}" for t in ticks)
+    return (f""", markLine: {{ silent: true, symbol: 'none',
+       lineStyle: {{ color: '{T["split_line"]}', type: 'solid', width: 0.8, opacity: 0.55 }},
+       label: {{ show: true, position: 'start', fontSize: 9, color: '{T["axis_label"]}',
+         formatter: function(p){{var v=p.value; return v>=1000 ? v.toLocaleString('en-US') : (v>=10 ? v.toFixed(0) : v.toFixed(2));}} }},
+       data: [{data}] }}""")
+
+
 def _index_kline_script(div_id: str, var: str, series: list, T: dict) -> str:
     """產生指數 K線圖 script: K線 + MA20 + 成交量 + Supertrend (主圖 only, KD/MACD 獨立)"""
     if not series:
@@ -1320,6 +1358,8 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
     vol_color = [T["up"] if d["close"] >= d["open"] else T["down"] for d in series]
     ma20 = [d["ma20"] for d in series]
     has_vol = any(v and v > 0 for v in vol)
+    price_ticks = log_price_ticks(min(d["low"] for d in series), max(d["high"] for d in series))
+    price_markline = _kline_price_markline(price_ticks, T)
 
     # Supertrend 拆多空兩條 (上下界不相連, 切換點直接斷開)
     st_up, st_dn = [], []
@@ -1347,7 +1387,7 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
   grid: [{{ left: '6%', right: '6%', top: '8%', bottom: '14%' }}],
   xAxis: [{{ type: 'category', data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}],
   yAxis: [
-    {{ type: 'log', logBase: 10, min: function(v){{return v.min*0.97;}}, max: function(v){{return v.max*1.03;}}, splitNumber: 4, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, minorTick: {{show: true, splitNumber: 10}}, minorSplitLine: {{show: true, lineStyle: {{color: '{T["split_line"]}', opacity: 0.4}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', showMinLabel: true, showMaxLabel: true, formatter: function(v){{return v.toFixed(0);}}}} }},
+    {{ type: 'log', logBase: 10, min: function(v){{return v.min*0.985;}}, max: function(v){{return v.max*1.015;}}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisLabel: {{show: false}}, axisTick: {{show: false}} }},
     {{ scale: true, show: false, max: function(v){{return Math.max(v.max*6,1);}} }}
   ],
   dataZoom: [
@@ -1355,7 +1395,7 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
     {{ show: true, type: 'slider', bottom: 4, height: 14, start: 40, end: 100, borderColor: '{T["dz_border"]}', fillerColor: '{T["dz_filler"]}', handleStyle: {{color: '{T["dz_handle"]}'}}, textStyle: {{color: '{T["dz_text"]}'}}, dataBackground: {{lineStyle: {{color: '{T["dz_bg_line"]}'}}, areaStyle: {{color: '{T["dz_bg_area"]}'}}}} }}
   ],
   series: [
-    {{ name: 'K線', type: 'candlestick', yAxisIndex: 0, data: {json.dumps(ohlc)}, itemStyle: {{color: '{T["up"]}', color0: '{T["down"]}', borderColor: '{T["up"]}', borderColor0: '{T["down"]}'}} }},
+    {{ name: 'K線', type: 'candlestick', yAxisIndex: 0, data: {json.dumps(ohlc)}, itemStyle: {{color: '{T["up"]}', color0: '{T["down"]}', borderColor: '{T["up"]}', borderColor0: '{T["down"]}'}}{price_markline} }},
     {{ name: 'MA20', type: 'line', yAxisIndex: 0, data: {json.dumps(ma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
     {{ name: 'Supertrend↑', type: 'line', yAxisIndex: 0, data: {json.dumps(st_up)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, type: 'dashed', color: '{T["up"]}'}} }},
     {{ name: 'Supertrend↓', type: 'line', yAxisIndex: 0, data: {json.dumps(st_dn)}, connectNulls: false, showSymbol: false, lineStyle: {{width: 2, type: 'dashed', color: '{T["down"]}'}} }}{vol_series}
@@ -1404,6 +1444,8 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
                 })
         mk_json = json.dumps(mk_data, ensure_ascii=False)
         ohlc = [[round(float(r["Open"]), 2), round(float(r["Close"]), 2), round(float(r["Low"]), 2), round(float(r["High"]), 2)] for _, r in df.iterrows()]
+        price_ticks = log_price_ticks(float(df["Low"].min()), float(df["High"].max()))
+        price_markline = _kline_price_markline(price_ticks, T)
         vol = [int(r["Volume"]) if pd.notna(r["Volume"]) else 0 for _, r in df.iterrows()]
         vol_color = [T["up"] if r["Close"] >= r["Open"] else T["down"] for _, r in df.iterrows()]
         ma20 = [round(v, 2) if pd.notna(v) else None for v in df["SMA_20"].tolist()]
@@ -1509,7 +1551,7 @@ kc_{tk}.setOption({{
     {{ type: 'category', gridIndex: 3, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: false}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}
   ],
   yAxis: [
-    {{ type: 'log', logBase: 10, gridIndex: 0, min: function(v){{return v.min*0.97;}}, max: function(v){{return v.max*1.03;}}, splitNumber: 4, splitArea: {{show: false}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}}, minorTick: {{show: true, splitNumber: 10}}, minorSplitLine: {{show: true, lineStyle: {{color: '{T["split_line"]}', opacity: 0.4}}}}, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', showMinLabel: true, showMaxLabel: true, formatter: function(v){{return v.toFixed(0);}}}} }},
+    {{ type: 'log', logBase: 10, gridIndex: 0, min: function(v){{return v.min*0.985;}}, max: function(v){{return v.max*1.015;}}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisLabel: {{show: false}}, axisTick: {{show: false}} }},
     {{ scale: true, gridIndex: 0, show: false, max: function(v){{return Math.max(v.max*6,1);}} }},
     {{ scale: false, gridIndex: 1, min: 0, max: 100, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     {{ scale: true, gridIndex: 2, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
@@ -1527,7 +1569,7 @@ kc_{tk}.setOption({{
            padding: [2, 4], borderRadius: 3, backgroundColor: 'inherit', borderColor: '#fff', borderWidth: 1,
            formatter: function(p){{return p.data.lab;}} }},
          tooltip: {{ trigger: 'item', formatter: function(p){{return p.data.side + ' @ ' + p.data.price + ' × ' + p.data.size + ' 股';}} }},
-         data: {mk_json} }} }},
+         data: {mk_json} }}{price_markline} }},
     {{ name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma20)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma20"]}'}} }},
     {{ name: 'MA60', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma60)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}} }},
     {{ name: 'MA200', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(ma200)}, smooth: true, showSymbol: false, lineStyle: {{width: 1, color: '{T["ma200"]}'}} }},
