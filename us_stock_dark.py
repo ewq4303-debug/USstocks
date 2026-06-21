@@ -1374,6 +1374,17 @@ def _kline_price_axislabel(ticks, T):
             f"return (v%1===0)?v.toFixed(0):v.toFixed(2);}}")
 
 
+# 游標十字準星 (axisPointer) 標籤格式: 預設會印出完整浮點數, 在此收斂小數位
+def _price_axispointer():
+    return ("axisPointer: { label: { formatter: function(p){var v=p.value; "
+            "return v>=1000 ? Math.round(v).toLocaleString('en-US') : v.toFixed(2);} } }")
+
+
+def _vol_axispointer():
+    return ("axisPointer: { label: { formatter: function(p){"
+            "return Math.round(p.value).toLocaleString('en-US');} } }")
+
+
 def _index_kline_script(div_id: str, var: str, series: list, T: dict) -> str:
     """產生指數 K線圖 script: K線 + MA20 + 成交量 + Supertrend (主圖 only, KD/MACD 獨立)"""
     if not series:
@@ -1417,8 +1428,8 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
   grid: [{{ left: '6%', right: '6%', top: '8%', bottom: '14%' }}],
   xAxis: [{{ type: 'category', data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}],
   yAxis: [
-    {{ type: 'log', logBase: 10, {price_min_js}, {price_max_js}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisTick: {{show: false}}, axisLabel: {{ {_kline_price_axislabel(price_ticks, T)} }} }},
-    {{ scale: true, show: false, max: function(v){{return Math.max(v.max/0.12,1);}} }}
+    {{ type: 'log', logBase: 10, {price_min_js}, {price_max_js}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisTick: {{show: false}}, axisLabel: {{ {_kline_price_axislabel(price_ticks, T)} }}, {_price_axispointer()} }},
+    {{ scale: true, show: false, max: function(v){{return Math.max(v.max/0.12,1);}}, {_vol_axispointer()} }}
   ],
   dataZoom: [
     {{ type: 'inside', start: 40, end: 100 }},
@@ -1582,8 +1593,8 @@ kc_{tk}.setOption({{
     {{ type: 'category', gridIndex: 3, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: false}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}
   ],
   yAxis: [
-    {{ type: 'log', logBase: 10, gridIndex: 0, {price_min_js}, {price_max_js}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisTick: {{show: false}}, axisLabel: {{ {_kline_price_axislabel(price_ticks, T)} }} }},
-    {{ scale: true, gridIndex: 0, show: false, max: function(v){{return Math.max(v.max/0.12,1);}} }},
+    {{ type: 'log', logBase: 10, gridIndex: 0, {price_min_js}, {price_max_js}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisTick: {{show: false}}, axisLabel: {{ {_kline_price_axislabel(price_ticks, T)} }}, {_price_axispointer()} }},
+    {{ scale: true, gridIndex: 0, show: false, max: function(v){{return Math.max(v.max/0.12,1);}}, {_vol_axispointer()} }},
     {{ scale: false, gridIndex: 1, min: 0, max: 100, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     {{ scale: true, gridIndex: 2, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     {{ gridIndex: 3, splitNumber: 2, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{show: false}} }},
