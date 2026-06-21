@@ -1307,40 +1307,48 @@ def generate_market_section(md: dict):
 # =========================================================
 # 圖表腳本
 # =========================================================
-def log_price_ticks(lo, hi, target=10):
-    """TradingView 風格的對數價格刻度: 在 [lo, hi] 內挑約 target 個『好讀整數』,
-    刻度在 log 軸上近似等像素間距 → 數值間隔隨價位放大 (高價疏、低價密)。
-    回傳由小到大的 list。"""
+def _round_sig(v, sig=3):
+    """四捨五入到 sig 位有效數字 (整數則回 int)。"""
+    if v <= 0:
+        return v
+    d = sig - 1 - math.floor(math.log10(abs(v)))
+    r = round(v, d)
+    return int(r) if d <= 0 else r
+
+
+def log_price_ticks(lo, hi, target=9):
+    """TradingView 風格的對數價格刻度: 在 log 軸上取等像素間距的刻度,
+    每個值四捨五入到 3 位有效數字 (不強制 5/0 倍數) → 視覺間距一致,
+    數值間隔自然隨價位放大。回傳由小到大的 list。"""
     try:
         lo = float(lo); hi = float(hi)
     except (TypeError, ValueError):
         return []
     if not (lo > 0 and hi > lo):
         return []
-    step_ratio = (hi / lo) ** (1.0 / max(target, 1))  # 每格理想乘法步長
-
-    def nice_inc(x):
-        """把數值步長 x 進位到最接近的『好看』級距 (1/2/2.5/5/10 ×10^k)。"""
-        if x <= 0:
-            return 1
-        mag = 10 ** math.floor(math.log10(x))
-        for m in (1, 2, 2.5, 5, 10):
-            if m * mag >= x * 0.999:
-                return m * mag
-        return 10 * mag
-
-    base = nice_inc((step_ratio - 1) * lo)
-    t = math.ceil(lo / base) * base
-    ticks, guard = [], 0
-    while t <= hi + 1e-9 and guard < 500:
-        guard += 1
-        ticks.append(round(t, 2))
-        inc = nice_inc((step_ratio - 1) * t)  # 該價位的理想數值間隔
-        nt = math.floor(t / inc) * inc + inc
-        if nt <= t:
-            nt = t + inc
-        t = nt
+    loglo, loghi = math.log10(lo), math.log10(hi)
+    ticks, prev = [], None
+    for i in range(target + 1):
+        v = 10 ** (loglo + (loghi - loglo) * i / target)
+        r = _round_sig(v, 3)
+        if prev is None or r > prev:
+            ticks.append(r); prev = r
     return ticks
+
+
+def _log_axis_minmax_js(f_pad=0.16, f_top=0.04):
+    """對數價格軸的 min/max JS 函式: 隨 dataZoom 動態 auto-fit, 同時在 log 軸
+    底部保留 f_pad (≈16%) 給成交量帶、頂部保留 f_top。f_pad 是整個軸高的固定
+    比例 → 不論價格區間大小或縮放, 最低 K 棒永遠落在距底 f_pad 處, 不壓到成交量。"""
+    denom = 1 - f_pad - f_top
+    return (
+        f"min: function(v){{var s=Math.log10(v.max)-Math.log10(v.min); "
+        f"if(!(s>0))return v.min; var R=s/{denom}; "
+        f"return Math.pow(10, Math.log10(v.min)-{f_pad}*R);}}",
+        f"max: function(v){{var s=Math.log10(v.max)-Math.log10(v.min); "
+        f"if(!(s>0))return v.max; var R=s/{denom}; "
+        f"return Math.pow(10, Math.log10(v.max)+{f_top}*R);}}",
+    )
 
 
 def _kline_price_markline(ticks, T):
@@ -1355,11 +1363,15 @@ def _kline_price_markline(ticks, T):
 
 
 def _kline_price_axislabel(ticks, T):
-    """對數價格軸的自訂刻度標籤 (需 ECharts ≥5.5: axisLabel.customValues)。"""
+    """對數價格軸的自訂刻度標籤 (需 ECharts ≥5.5: axisLabel.customValues)。
+    依數值大小保留適當小數位 (避免 10.5/11.1 被進位成相同整數)。"""
     cv = json.dumps(ticks)
     return (f"customValues: {cv}, fontSize: 9, color: '{T['axis_label']}', "
-            f"formatter: function(v){{return v>=1000 ? v.toLocaleString('en-US') : "
-            f"(v>=10 ? v.toFixed(0) : v.toFixed(2));}}")
+            f"formatter: function(v){{"
+            f"if(v>=1000) return v.toLocaleString('en-US');"
+            f"if(v>=100) return v.toFixed(0);"
+            f"if(v>=10) return (v%1===0)?v.toFixed(0):v.toFixed(1);"
+            f"return (v%1===0)?v.toFixed(0):v.toFixed(2);}}")
 
 
 def _index_kline_script(div_id: str, var: str, series: list, T: dict) -> str:
@@ -1376,6 +1388,7 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
     ma20 = [d["ma20"] for d in series]
     has_vol = any(v and v > 0 for v in vol)
     price_ticks = log_price_ticks(min(d["low"] for d in series), max(d["high"] for d in series))
+    price_min_js, price_max_js = _log_axis_minmax_js()
     price_markline = _kline_price_markline(price_ticks, T)
 
     # Supertrend 拆多空兩條 (上下界不相連, 切換點直接斷開)
@@ -1404,8 +1417,8 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
   grid: [{{ left: '6%', right: '6%', top: '8%', bottom: '14%' }}],
   xAxis: [{{ type: 'category', data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}],
   yAxis: [
-    {{ type: 'log', logBase: 10, min: function(v){{return v.min*0.985;}}, max: function(v){{return v.max*1.015;}}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisTick: {{show: false}}, axisLabel: {{ {_kline_price_axislabel(price_ticks, T)} }} }},
-    {{ scale: true, show: false, max: function(v){{return Math.max(v.max*6,1);}} }}
+    {{ type: 'log', logBase: 10, {price_min_js}, {price_max_js}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisTick: {{show: false}}, axisLabel: {{ {_kline_price_axislabel(price_ticks, T)} }} }},
+    {{ scale: true, show: false, max: function(v){{return Math.max(v.max/0.12,1);}} }}
   ],
   dataZoom: [
     {{ type: 'inside', start: 40, end: 100 }},
@@ -1462,6 +1475,7 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
         mk_json = json.dumps(mk_data, ensure_ascii=False)
         ohlc = [[round(float(r["Open"]), 2), round(float(r["Close"]), 2), round(float(r["Low"]), 2), round(float(r["High"]), 2)] for _, r in df.iterrows()]
         price_ticks = log_price_ticks(float(df["Low"].min()), float(df["High"].max()))
+        price_min_js, price_max_js = _log_axis_minmax_js()
         price_markline = _kline_price_markline(price_ticks, T)
         vol = [int(r["Volume"]) if pd.notna(r["Volume"]) else 0 for _, r in df.iterrows()]
         vol_color = [T["up"] if r["Close"] >= r["Open"] else T["down"] for _, r in df.iterrows()]
@@ -1568,8 +1582,8 @@ kc_{tk}.setOption({{
     {{ type: 'category', gridIndex: 3, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: false}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}
   ],
   yAxis: [
-    {{ type: 'log', logBase: 10, gridIndex: 0, min: function(v){{return v.min*0.985;}}, max: function(v){{return v.max*1.015;}}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisTick: {{show: false}}, axisLabel: {{ {_kline_price_axislabel(price_ticks, T)} }} }},
-    {{ scale: true, gridIndex: 0, show: false, max: function(v){{return Math.max(v.max*6,1);}} }},
+    {{ type: 'log', logBase: 10, gridIndex: 0, {price_min_js}, {price_max_js}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisTick: {{show: false}}, axisLabel: {{ {_kline_price_axislabel(price_ticks, T)} }} }},
+    {{ scale: true, gridIndex: 0, show: false, max: function(v){{return Math.max(v.max/0.12,1);}} }},
     {{ scale: false, gridIndex: 1, min: 0, max: 100, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     {{ scale: true, gridIndex: 2, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     {{ gridIndex: 3, splitNumber: 2, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{show: false}} }},
