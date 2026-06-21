@@ -1307,42 +1307,59 @@ def generate_market_section(md: dict):
 # =========================================================
 # 圖表腳本
 # =========================================================
-def log_price_ticks(lo, hi, target=6):
-    """在對數價格軸上挑選『整數好讀』的刻度值 (回傳由小到大的 list)。
-    取線性的整數刻度 (1000/2000/2500/5000…) 但畫在 log 軸上,
-    刻度間距自然不等 (對數座標特性)。"""
+def log_price_ticks(lo, hi, target=10):
+    """TradingView 風格的對數價格刻度: 在 [lo, hi] 內挑約 target 個『好讀整數』,
+    刻度在 log 軸上近似等像素間距 → 數值間隔隨價位放大 (高價疏、低價密)。
+    回傳由小到大的 list。"""
     try:
         lo = float(lo); hi = float(hi)
     except (TypeError, ValueError):
         return []
     if not (lo > 0 and hi > lo):
         return []
-    span = hi - lo
-    raw = span / max(target, 1)
-    mag = 10 ** math.floor(math.log10(raw)) if raw > 0 else 1
-    step = mag
-    for m in (1, 2, 2.5, 5, 10):
-        if span / (m * mag) <= target * 1.5:
-            step = m * mag
-            break
-    start = math.ceil(lo / step) * step
-    ticks, v = [], start
-    while v <= hi + 1e-9:
-        ticks.append(round(v, 2) if step < 1 else round(v))
-        v += step
+    step_ratio = (hi / lo) ** (1.0 / max(target, 1))  # 每格理想乘法步長
+
+    def nice_inc(x):
+        """把數值步長 x 進位到最接近的『好看』級距 (1/2/2.5/5/10 ×10^k)。"""
+        if x <= 0:
+            return 1
+        mag = 10 ** math.floor(math.log10(x))
+        for m in (1, 2, 2.5, 5, 10):
+            if m * mag >= x * 0.999:
+                return m * mag
+        return 10 * mag
+
+    base = nice_inc((step_ratio - 1) * lo)
+    t = math.ceil(lo / base) * base
+    ticks, guard = [], 0
+    while t <= hi + 1e-9 and guard < 500:
+        guard += 1
+        ticks.append(round(t, 2))
+        inc = nice_inc((step_ratio - 1) * t)  # 該價位的理想數值間隔
+        nt = math.floor(t / inc) * inc + inc
+        if nt <= t:
+            nt = t + inc
+        t = nt
     return ticks
 
 
 def _kline_price_markline(ticks, T):
-    """產生對數價格軸的自訂格線 + 標籤 markLine 設定 (整數刻度, 對數間距)。"""
+    """對數價格軸的水平格線 markLine (只畫線, 標籤由座標軸 customValues 顯示)。"""
     if not ticks:
         return ""
     data = ", ".join(f"{{yAxis: {t}}}" for t in ticks)
     return (f""", markLine: {{ silent: true, symbol: 'none',
-       lineStyle: {{ color: '{T["split_line"]}', type: 'solid', width: 0.8, opacity: 0.55 }},
-       label: {{ show: true, position: 'start', fontSize: 9, color: '{T["axis_label"]}',
-         formatter: function(p){{var v=p.value; return v>=1000 ? v.toLocaleString('en-US') : (v>=10 ? v.toFixed(0) : v.toFixed(2));}} }},
+       lineStyle: {{ color: '{T["split_line"]}', type: 'solid', width: 0.8, opacity: 0.5 }},
+       label: {{ show: false }},
        data: [{data}] }}""")
+
+
+def _kline_price_axislabel(ticks, T):
+    """對數價格軸的自訂刻度標籤 (需 ECharts ≥5.5: axisLabel.customValues)。"""
+    cv = json.dumps(ticks)
+    return (f"customValues: {cv}, fontSize: 9, color: '{T['axis_label']}', "
+            f"formatter: function(v){{return v>=1000 ? v.toLocaleString('en-US') : "
+            f"(v>=10 ? v.toFixed(0) : v.toFixed(2));}}")
 
 
 def _index_kline_script(div_id: str, var: str, series: list, T: dict) -> str:
@@ -1387,7 +1404,7 @@ var {var} = echarts.init(document.getElementById('{div_id}'));
   grid: [{{ left: '6%', right: '6%', top: '8%', bottom: '14%' }}],
   xAxis: [{{ type: 'category', data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: true, fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}],
   yAxis: [
-    {{ type: 'log', logBase: 10, min: function(v){{return v.min*0.985;}}, max: function(v){{return v.max*1.015;}}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisLabel: {{show: false}}, axisTick: {{show: false}} }},
+    {{ type: 'log', logBase: 10, min: function(v){{return v.min*0.985;}}, max: function(v){{return v.max*1.015;}}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisTick: {{show: false}}, axisLabel: {{ {_kline_price_axislabel(price_ticks, T)} }} }},
     {{ scale: true, show: false, max: function(v){{return Math.max(v.max*6,1);}} }}
   ],
   dataZoom: [
@@ -1551,7 +1568,7 @@ kc_{tk}.setOption({{
     {{ type: 'category', gridIndex: 3, data: {json.dumps(dates)}, boundaryGap: true, axisLabel: {{show: false}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}
   ],
   yAxis: [
-    {{ type: 'log', logBase: 10, gridIndex: 0, min: function(v){{return v.min*0.985;}}, max: function(v){{return v.max*1.015;}}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisLabel: {{show: false}}, axisTick: {{show: false}} }},
+    {{ type: 'log', logBase: 10, gridIndex: 0, min: function(v){{return v.min*0.985;}}, max: function(v){{return v.max*1.015;}}, splitArea: {{show: false}}, splitLine: {{show: false}}, axisTick: {{show: false}}, axisLabel: {{ {_kline_price_axislabel(price_ticks, T)} }} }},
     {{ scale: true, gridIndex: 0, show: false, max: function(v){{return Math.max(v.max*6,1);}} }},
     {{ scale: false, gridIndex: 1, min: 0, max: 100, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     {{ scale: true, gridIndex: 2, splitNumber: 3, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
@@ -2851,7 +2868,7 @@ def generate_html(stocks_data, options_data, fund_data, md):
     <div class="imodal-row"><div class="k">進出判斷依據</div><div class="v" id="iSignal"></div></div>
   </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 <script>
 var GAS_URL = '{GAS_URL}';
 var TRIGGER_URL = '{TRIGGER_URL}';
