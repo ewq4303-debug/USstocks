@@ -34,9 +34,9 @@
       "ann_vol": 0.1923
     },
     "SOXX": {
-      "sharpe": 1.1247,
-      "ann_return": 1.0565,
-      "ann_vol": 0.907
+      "sharpe": 0.0024,
+      "ann_return": 0.0386,
+      "ann_vol": 0.9086
     },
     "QQQ": {
       "sharpe": -2.0157,
@@ -46,12 +46,12 @@
   },
   "information_ratio": {
     "benchmark": "SOXX",
-    "ir": -3.4947,
-    "t_stat": -0.8237,
+    "ir": -3.0087,
+    "t_stat": -0.7341,
     "significant": false,
-    "ann_active_return": -0.7745,
-    "tracking_error": 0.2216,
-    "note": "IR=-3.49、樣本 0.1 年 → t≈-0.82，尚在雜訊範圍"
+    "ann_active_return": -0.6491,
+    "tracking_error": 0.2158,
+    "note": "IR=-3.01、樣本 0.1 年 → t≈-0.73，尚在雜訊範圍"
   },
   "treynor": {
     "benchmark": "SPY",
