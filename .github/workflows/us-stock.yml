@@ -32,17 +32,31 @@ jobs:
           pip install yfinance pandas numpy requests
       
       - name: Fetch IBKR Daily NAV (Flex Web Service)
-        continue-on-error: true   # Flex 暫時性錯誤不應擋住整個儀表板建置
         env:
           IBKR_FLEX_TOKEN: ${{ secrets.IBKR_FLEX_TOKEN }}
           IBKR_FLEX_QUERY_ID: ${{ secrets.IBKR_FLEX_QUERY_ID }}
         run: |
-          python fetch_ibkr_nav.py
+          set +e
+          python fetch_ibkr_nav.py 2>&1 | tee /tmp/fetch_nav.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -eq 0 ]; then
+            python scripts/write_build_status.py fetch_nav ok "IBKR Flex NAV updated"
+          else
+            python scripts/write_build_status.py fetch_nav fail "$(tail -n 5 /tmp/fetch_nav.log | tr '\n' ' ')"
+          fi
+          exit 0
 
       - name: Compute Portfolio Risk-Adjusted Metrics
-        continue-on-error: true   # 績效指標計算失敗不應擋住整個儀表板建置
         run: |
-          python compute_metrics.py
+          set +e
+          python compute_metrics.py 2>&1 | tee /tmp/compute_metrics.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -eq 0 ]; then
+            python scripts/write_build_status.py compute_metrics ok "portfolio metrics updated"
+          else
+            python scripts/write_build_status.py compute_metrics fail "$(tail -n 5 /tmp/compute_metrics.log | tr '\n' ' ')"
+          fi
+          exit 0
 
       - name: Run US Stock Monitor
         env:

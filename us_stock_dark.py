@@ -99,6 +99,7 @@ RM_ACTION_COLOR = {
 IBKR_DATA_FILE = "ibkr_data.json"
 NAV_HISTORY_FILE = "nav_history.json"  # 每日帳戶淨值累積檔 (由 fetch_ibkr_nav.py 經 Flex Web Service 累積)
 PORTFOLIO_METRICS_FILE = f"{OUTPUT_DIR}/data/portfolio_metrics.json"  # 風險調整後報酬 (由 compute_metrics.py 產生)
+BUILD_STATUS_FILE = f"{OUTPUT_DIR}/data/build_status.json"  # CI 各資料源更新狀態 (workflow 產生，可缺省)
 
 def load_nav_history():
     """讀取每日帳戶淨值累積檔，回傳 [{date, nav}, ...] (依日期升冪)，無檔則回空 list。
@@ -997,7 +998,21 @@ def calculate_rating(data, fund, opt):
     elif total >= 6: rating, rk = "中性", "n"
     elif total >= 3: rating, rk = "減碼", "s"
     else: rating, rk = "賣出", "ss"
-    return {"tech": round(tech, 1), "chip": round(chip, 1), "total": round(total, 1), "rating": rating, "rating_key": rk}
+    details = [
+        {"group": "技術", "label": "站上季線", "points": 1.5 if close > ind.get("ma60", 0) > 0 else 0},
+        {"group": "技術", "label": "季線高於年線", "points": 2 if ind.get("ma60", 0) > ind.get("ma200", 0) > 0 else 0},
+        {"group": "技術", "label": "接近 52 週高", "points": 1.5 if ind.get("high_252", 0) > 0 and close >= ind.get("high_252", 0) * 0.95 else 0},
+        {"group": "技術", "label": "成交量高於 20 日均量", "points": 1 if latest.get("volume", 0) > ind.get("vol_ma20", 0) > 0 else 0},
+        {"group": "技術", "label": "MACD 柱狀體為正", "points": 2 if ind.get("macd_hist", 0) > 0 else 0},
+        {"group": "技術", "label": "RSI 位於健康區", "points": 2 if 45 <= rsi <= 70 else (1 if 40 <= rsi < 45 or 70 < rsi <= 78 else 0)},
+        {"group": "籌碼", "label": "法人持股比例", "points": 2 if inst_pct >= 0.6 else (1 if inst_pct >= 0.4 else 0)},
+        {"group": "籌碼", "label": "空單月減少", "points": 2 if ss is not None and ssp is not None and ssp > 0 and ss < ssp else 0},
+        {"group": "籌碼", "label": "低放空比", "points": 1.5 if spf is not None and spf < 0.05 else 0},
+        {"group": "籌碼", "label": "Put/Call 偏多", "points": (1.5 if opt and opt.get("pcr_oi", 1) and opt.get("pcr_oi", 1) < 0.7 else (0.75 if opt and opt.get("pcr_oi", 1) and opt.get("pcr_oi", 1) < 1.0 else 0))},
+        {"group": "籌碼", "label": "分析師目標價上檔", "points": 1.5 if tp and close and tp > close * 1.05 else 0},
+        {"group": "籌碼", "label": "預估 PE 改善", "points": 1.5 if fp and fund.get("trailing_pe") and 0 < fp < fund.get("trailing_pe") else 0},
+    ]
+    return {"tech": round(tech, 1), "chip": round(chip, 1), "total": round(total, 1), "rating": rating, "rating_key": rk, "details": details}
 
 # =========================================================
 # 前端 (深色終端, 綠漲紅跌)
@@ -1081,6 +1096,14 @@ def generate_stock_card(ticker: str, data: dict, opt: dict, fund: dict) -> str:
       <div class="fund-cell"><div class="k">Beta</div><div class="v">{fmt_num(fund.get('beta'))}</div></div>
     </div>"""
 
+    rating_rows = "".join(
+        f'<tr><td>{d.get("group")}</td><td>{d.get("label")}</td><td class="num">+{d.get("points",0):g}</td></tr>'
+        for d in r.get("details", []) if d.get("points", 0) > 0
+    ) or '<tr><td colspan="3">本期沒有加分項</td></tr>'
+    rating_detail = f"""<details class="fold"><summary>評分明細：技術 {r.get('tech',0):g} / 籌碼 {r.get('chip',0):g} / 總分 {r.get('total',0):g}</summary>
+      <table class="dtable"><tr><th>分類</th><th>條件</th><th>得分</th></tr>{rating_rows}</table>
+    </details>"""
+
     # 法人 / 放空 表
     ss, ssp = fund.get("shares_short"), fund.get("shares_short_prior")
     short_trend = "-"
@@ -1135,6 +1158,7 @@ def generate_stock_card(ticker: str, data: dict, opt: dict, fund: dict) -> str:
 
         <div class="sc-detail">
           {fund_strip}
+          {rating_detail}
           <div class="kchips" data-tk="{ticker}">
             <span class="kchip on" data-tk="{ticker}" data-s="MA20" onclick="toggleKChip(this,event)">MA20<i class="kinfo" onclick="showKInfo(event,'ma')">i</i></span>
             <span class="kchip" data-tk="{ticker}" data-s="MA60" onclick="toggleKChip(this,event)">MA60<i class="kinfo" onclick="showKInfo(event,'ma')">i</i></span>
@@ -2491,7 +2515,150 @@ window._holdNav = {json.dumps(port_hist)};
 """)
     return "\n".join(js)
 
-def generate_holdings_section(ibkr, has_hist=False, has_posratio=False, has_compare=False):
+def load_build_status():
+    """讀取 workflow 產出的資料源狀態；缺檔時回傳空 dict，不影響本地建置。"""
+    if not os.path.exists(BUILD_STATUS_FILE):
+        return {}
+    try:
+        with open(BUILD_STATUS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        print(f"  ⚠️ 讀取 build_status 失敗: {e}")
+        return {}
+
+def _status_badge(ok, label, detail=""):
+    cls = "sb" if ok else "ss"
+    icon = "✓" if ok else "!"
+    title = str(detail).replace('"', "&quot;")
+    return f'<span class="rbadge {cls}" title="{title}">{icon} {label}</span>'
+
+def generate_freshness_bar(ibkr, pm, build_status):
+    """Header 下方資料新鮮度列：避免 workflow soft-fail 或資料延遲被誤讀為最新。"""
+    nav_rows = load_nav_history()
+    nav_last = nav_rows[-1]["date"] if nav_rows else "無"
+    holdings_at = ibkr.get("fetched_at") or "無"
+    metrics_at = (pm or {}).get("as_of") or "無"
+    bs = build_status.get("steps", {}) if isinstance(build_status.get("steps"), dict) else {}
+    badges = [
+        _status_badge(True, "行情", f"頁面建置 {now_et().strftime('%Y-%m-%d %H:%M')} ET"),
+        _status_badge(bool(nav_rows), "NAV", f"最後 {nav_last}"),
+        _status_badge(bool(ibkr.get("positions")), "IBKR", f"快照 {holdings_at}"),
+        _status_badge(bool(pm), "績效", f"as of {metrics_at}"),
+    ]
+    for key, label in (("fetch_nav", "NAV管線"), ("compute_metrics", "績效管線")):
+        if key in bs:
+            rec = bs.get(key) or {}
+            badges.append(_status_badge(bool(rec.get("ok")), label, rec.get("message", "")))
+    return f"""<div class="card" style="padding:10px 14px;margin:12px 0 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.08em">Data Freshness</span>
+      {''.join(badges)}
+      <span style="font-size:11px;color:var(--ink-3)">滑過徽章可看最後日期 / pipeline 狀態。</span>
+    </div>"""
+
+def compute_portfolio_risk(ibkr, fund_data=None):
+    """由 IBKR 快照與 yfinance 基本面估算集中度、現金、Beta、產業曝險與情境風險。"""
+    fund_data = fund_data or {}
+    positions = [p for p in ibkr.get("positions", []) if (p.get("market_value") or 0) > 0]
+    summ = ibkr.get("summary", {})
+    nav = float(summ.get("net_liquidation") or 0) or sum(float(p.get("market_value") or 0) for p in positions)
+    cash = float(summ.get("total_cash_value") or 0)
+    gross = float(summ.get("gross_position_value") or 0) or sum(float(p.get("market_value") or 0) for p in positions)
+    rows, sector_mv = [], {}
+    weighted_beta = beta_weight = 0.0
+    for p in positions:
+        sym = p.get("symbol", "")
+        mv = float(p.get("market_value") or 0)
+        w = mv / nav if nav else 0
+        fund = fund_data.get(sym, {})
+        sector = fund.get("sector") or "未分類"
+        beta = fund.get("beta")
+        if isinstance(beta, (int, float)) and math.isfinite(beta):
+            weighted_beta += w * beta
+            beta_weight += w
+        sector_mv[sector] = sector_mv.get(sector, 0.0) + mv
+        rows.append({"symbol": sym, "mv": mv, "weight": w, "sector": sector, "beta": beta})
+    rows.sort(key=lambda x: x["mv"], reverse=True)
+    sector_rows = sorted(
+        [{"sector": k, "mv": v, "weight": v / nav if nav else 0} for k, v in sector_mv.items()],
+        key=lambda x: x["mv"], reverse=True)
+    beta = weighted_beta if beta_weight else None
+    scenarios = [
+        {"name": "NASDAQ -2%", "impact": -(beta or 1.0) * 0.02 * gross},
+        {"name": "SOXX -3%", "impact": -(beta or 1.0) * 0.03 * gross},
+        {"name": "市場 -5%", "impact": -(beta or 1.0) * 0.05 * gross},
+    ]
+    return {
+        "nav": nav, "cash": cash, "gross": gross, "cash_ratio": cash / nav if nav else 0,
+        "position_ratio": gross / nav if nav else 0, "weighted_beta": beta,
+        "top1": rows[0]["weight"] if rows else 0, "top3": sum(r["weight"] for r in rows[:3]),
+        "top5": sum(r["weight"] for r in rows[:5]), "positions": rows,
+        "sectors": sector_rows, "scenarios": scenarios,
+    }
+
+def generate_portfolio_risk_section(ibkr, fund_data=None):
+    risk = compute_portfolio_risk(ibkr, fund_data)
+    def pct(v): return f"{v*100:.1f}%" if isinstance(v, (int, float)) else "—"
+    def money(v): return f"${v:,.0f}" if isinstance(v, (int, float)) else "—"
+    beta = risk.get("weighted_beta")
+    beta_txt = f"{beta:.2f}" if isinstance(beta, (int, float)) else "—"
+    top_rows = "".join(
+        f'<tr><td>{r["symbol"]}</td><td>{pct(r["weight"])}</td><td>{r["sector"]}</td><td>{fmt_num(r.get("beta"), "", 2)}</td></tr>'
+        for r in risk["positions"][:8]) or '<tr><td colspan="4">無持倉</td></tr>'
+    sector_rows = "".join(
+        f'<tr><td>{r["sector"]}</td><td>{money(r["mv"])}</td><td>{pct(r["weight"])}</td></tr>'
+        for r in risk["sectors"][:8]) or '<tr><td colspan="3">無資料</td></tr>'
+    scenario_rows = "".join(
+        f'<tr><td>{s["name"]}</td><td class="down">{money(s["impact"])}</td><td class="down">{pct(s["impact"] / risk["nav"] if risk["nav"] else None)}</td></tr>'
+        for s in risk["scenarios"])
+    return f"""<div class="section-head"><span class="eyebrow">Risk Control</span><h2>部位風險總覽</h2></div>
+    <div class="metrics metrics-4">
+      <div class="metric accent"><div class="label">持倉比例</div><div class="value num">{pct(risk['position_ratio'])}</div></div>
+      <div class="metric"><div class="label">現金比例</div><div class="value num">{pct(risk['cash_ratio'])}</div></div>
+      <div class="metric"><div class="label">前三大集中度</div><div class="value num">{pct(risk['top3'])}</div></div>
+      <div class="metric"><div class="label">市值加權 Beta</div><div class="value num">{beta_txt}</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="card-title">前 8 大持倉曝險</div><table class="dtable"><tr><th>代號</th><th>佔 NAV</th><th>產業</th><th>Beta</th></tr>{top_rows}</table></div>
+      <div class="card"><div class="card-title">產業集中度</div><table class="dtable"><tr><th>產業</th><th>市值</th><th>佔 NAV</th></tr>{sector_rows}</table></div>
+    </div>
+    <div class="card"><div class="card-title">簡行情境壓力測試</div><table class="dtable"><tr><th>情境</th><th>估計損益</th><th>佔 NAV</th></tr>{scenario_rows}</table>
+    <div style="font-size:11px;color:var(--ink-3);margin-top:10px;line-height:1.6">情境為 Beta 近似估算，未納入個股特異風險、選擇權非線性與盤中流動性，僅作風控提醒。</div></div>"""
+
+def generate_trade_review_section(ibkr, stocks_data):
+    """用交易後 1/5/20 個交易日報酬做簡易交易檢討。"""
+    rows = []
+    for sym, ms in build_trade_markers(ibkr).items():
+        data = stocks_data.get(sym)
+        if not data or data.get("close_full") is None:
+            continue
+        close = _naive_daily_index(data["close_full"]).dropna()
+        for m in ms:
+            d = pd.Timestamp(m["et_date"])
+            idx = close.index.searchsorted(d)
+            if idx >= len(close):
+                continue
+            entry = float(m.get("price") or close.iloc[idx])
+            vals = []
+            for horizon in (1, 5, 20):
+                j = idx + horizon
+                vals.append((float(close.iloc[j]) / entry - 1) if j < len(close) and entry else None)
+            rows.append({"symbol": sym, "date": str(m["et_date"]), "side": m["side"], "price": entry, "size": m.get("size"), "r1": vals[0], "r5": vals[1], "r20": vals[2]})
+    rows.sort(key=lambda r: (r["date"], r["symbol"]), reverse=True)
+    def rp(v):
+        if not isinstance(v, (int, float)):
+            return "—"
+        cls = "up" if v >= 0 else "down"
+        return f'<span class="{cls}">{v*100:+.1f}%</span>'
+    body = "".join(
+        f'<tr><td>{r["date"]}</td><td>{r["symbol"]}</td><td>{r["side"]}</td><td>{r["size"]:g}</td><td>${r["price"]:,.2f}</td><td>{rp(r["r1"])}</td><td>{rp(r["r5"])}</td><td>{rp(r["r20"])}</td></tr>'
+        for r in rows[:80]) or '<tr><td colspan="8">目前沒有可對齊 K 線的交易紀錄</td></tr>'
+    return f"""<div class="section-head"><span class="eyebrow">Trade Journal</span><h2>交易檢討</h2></div>
+    <div class="card"><div class="card-title">買賣後 1 / 5 / 20 交易日追蹤</div>
+    <div style="overflow-x:auto"><table class="dtable"><tr><th>日期</th><th>代號</th><th>方向</th><th>股數</th><th>VWAP</th><th>+1D</th><th>+5D</th><th>+20D</th></tr>{body}</table></div>
+    <div style="font-size:11px;color:var(--ink-3);margin-top:10px;line-height:1.6">以 IBKR 成交 VWAP 對齊後續收盤價；SELL 後報酬仍顯示標的後續漲跌，方便檢討是否賣早/賣晚。</div></div>"""
+
+def generate_holdings_section(ibkr, has_hist=False, has_posratio=False, has_compare=False, fund_data=None, stocks_data=None):
     """IBKR 持股明細頁：帳戶總覽 + 圖表 + 持股表"""
     positions = sorted(ibkr.get("positions", []),
                        key=lambda p: p.get("market_value", 0), reverse=True)
@@ -2579,6 +2746,9 @@ def generate_holdings_section(ibkr, has_hist=False, has_posratio=False, has_comp
       {posratio_card}
     </div>"""
 
+    risk_section = generate_portfolio_risk_section(ibkr, fund_data)
+    trade_review = generate_trade_review_section(ibkr, stocks_data or {})
+
     return f"""<div class="section-head"><span class="eyebrow">IBKR Portfolio</span><h2>持股明細</h2></div>
     <div class="metrics metrics-4">{cards}</div>
     {charts_row}
@@ -2595,7 +2765,9 @@ def generate_holdings_section(ibkr, has_hist=False, has_posratio=False, has_comp
         綠漲紅跌 (US convention)。資料為 IBKR 帳戶快照，於建置時讀取 <code>ibkr_data.json</code>。
         個股 K 線圖上可勾選「顯示進出標記」檢視實際買賣點。
       </div>
-    </div>"""
+    </div>
+    {risk_section}
+    {trade_review}"""
 
 def load_portfolio_metrics():
     """讀 docs/data/portfolio_metrics.json (由 compute_metrics.py 產生)。無檔/壞檔回 None。"""
@@ -2793,13 +2965,14 @@ def generate_html(stocks_data, options_data, fund_data, md):
     rating_table = generate_rating_table(stocks_data)
 
     ibkr = load_ibkr_data()
+    build_status = load_build_status()
     trade_markers = build_trade_markers(ibkr)
     has_ibkr = bool(ibkr.get("positions"))
     port_hist = compute_portfolio_history(ibkr) if has_ibkr else None
     has_posratio = bool(port_hist) and sum(
         1 for v in (port_hist.get("pos_ratio") or []) if v is not None) >= 2
     has_compare = bool(port_hist and port_hist.get("compare"))
-    holdings_section = (generate_holdings_section(ibkr, bool(port_hist), has_posratio, has_compare)
+    holdings_section = (generate_holdings_section(ibkr, bool(port_hist), has_posratio, has_compare, fund_data, stocks_data)
                        if has_ibkr else "")
     holdings_chart_script = (
         generate_holdings_chart_script(port_hist, build_alloc_data(ibkr.get("positions", [])))
@@ -2809,6 +2982,7 @@ def generate_html(stocks_data, options_data, fund_data, md):
     has_perf = bool(perf_metrics)
     perf_section = generate_perf_section(perf_metrics) if has_perf else ""
     perf_chart_script = generate_perf_chart_script(perf_metrics) if has_perf else ""
+    freshness_bar = generate_freshness_bar(ibkr, perf_metrics, build_status)
 
     sidebar_items, stock_cards = "", ""
     first = True
@@ -2861,6 +3035,7 @@ def generate_html(stocks_data, options_data, fund_data, md):
     <div><h1>🇺🇸 美股監控儀表板</h1><div class="update-time">最後更新 {update_time} ET · 即時連線</div></div>
     <button id="runBtn" class="btn-run" onclick="triggerAction(this)">⟳ 重新抓取最新資料</button>
   </div>
+  {freshness_bar}
   <div class="tabs-container">
       <button class="tab-btn active" onclick="switchTab('tab-market', this)">大盤總覽</button>
       <button class="tab-btn" onclick="switchTab('tab-rating', this)">綜合評等</button>
