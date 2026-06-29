@@ -89,6 +89,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/ nav_history.json 2>/dev/null || true
+          # build_status.json is embedded into docs/us.html during generation and is intentionally
+          # left uncommitted to avoid timestamp-only merge conflicts between PR branches and main.
+          git reset -- docs/data/build_status.json 2>/dev/null || true
           if ! git diff --staged --quiet; then
             git commit -m "US stock update: $(date -u +'%Y-%m-%d %H:%M') UTC"
             git push

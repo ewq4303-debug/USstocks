@@ -3486,6 +3486,9 @@ def main():
         subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
         subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
         subprocess.run(["git", "add", OUTPUT_DIR], check=True)
+        # build_status 已在 HTML 建置時讀入並嵌入頁面；它是每次 CI 都會變動的暫態檔，
+        # 不提交可避免 PR 與 main 因狀態時間戳反覆產生 merge conflict。
+        subprocess.run(["git", "reset", "--", BUILD_STATUS_FILE], check=False)
         if subprocess.run(["git", "diff", "--staged", "--quiet"]).returncode == 0:
             print("  無變動")
         else:

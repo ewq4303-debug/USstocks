@@ -70,3 +70,9 @@ python -m pytest tests/test_dashboard_enhancements.py
 - 綜合評等分頁會以最新一筆「非今日」快照作為比較基準，顯示升級、降級、新追蹤或持平。
 - 個股卡片 header 也會顯示本檔標的的評等變化，例如「買進 → 強力買進」。
 - 歷史保留上限預設為 260 筆建置日，約等於一年美股交易日。
+
+## 8. Merge conflict policy for generated status files
+
+`docs/data/build_status.json` is a transient CI status file. The generator reads it before writing `docs/us.html`, so the status is already reflected in the rendered page for that build. To avoid timestamp-only PR conflicts, both the in-script git commit path and the workflow commit step explicitly unstage this file before committing.
+
+`docs/data/rating_history.json` remains a persisted generated artifact because the next build needs it to compare ratings and detect upgrades/downgrades.
