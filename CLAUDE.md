@@ -21,11 +21,35 @@
     `rolling_alpha` 內部一律存 mean(ε)，對外顯示一律 mean(ε)×252×100（標籤「α年化」）；
     防 look-ahead（係數只用 t-1 前資料）、ε 不扣 α̂
   - `write_residual_series_json()` 輸出 `docs/data/series/{TICKER}.json`
-    （dates/cum_alpha/ma20/ma60/rolling_alpha/z_short/rmom/price/beta_mkt/r2，NaN→null）
+    （dates/cum_alpha/ma20/ma60/rolling_alpha/z_short/rmom/price/beta_mkt/r2 + signal/action，NaN→null；
+    在 regime gating 之後輸出，action 為 gating 後最終值）
     訊號分類（pullback/overheat/strong/weak/neutral/no_signal）純由 rMOM×Z_short 客觀推導；
     標題在 `[訊號]` 後以富文本 `{a|→ 建議}`（`RM_ACTION_ZH`/`RM_ACTION_COLOR`）顯示客觀建議
     （加碼黃金點/部分調節/順勢續抱/減碼退出/觀望/不採信回歸），完整規則見 `i` 說明（`KINFO.resid`）；
     系統不做手動標記/動作推導。
+- 宏觀 Regime 層（SPEC_macro_regime，`macro_regime.py` 純計算模組 + `us_stock_dark.py` 膠水）：
+  - 掛在殘差 pipeline 之後（main 步驟 2.5）：個股 rMOM → Breadth → sector 迴歸 →
+    regime 狀態機 → 讀 `macro_checkpoints.json` → action gating → `docs/data/macro_regime.json`
+  - **sector_rMOM**：把 SOXX 當一檔股票對 SPY 做**單因子**滾動回歸（重用
+    `compute_residual_momentum(soxx, spy, None)`，shift(1) 防前視、視窗比照個股層），
+    取 rMOM 序列 + 累積 α 線；回答「半導體相對大盤的持續強勢結構是否仍在」
+  - **Breadth** = count(觀察清單 rMOM≥1) ÷ count(當日 rMOM 非 NaN)，歷史不足新股不進分母；
+    有效 <10 檔 → `low_sample`，狀態機暫停翻轉
+  - **狀態機**（`REGIME_CONFIG`）：NORMAL→BEAR 需 sector_rMOM<1.0 且 Breadth<0.30 連續 3 日；
+    BEAR→NORMAL 需 >1.3 且 >0.45 連續 3 日（遲滯，緩衝帶維持前狀態）；缺漏日不計入連續天數
+    且計數不歸零；sector 連續 stale>5 日凍結 + warning（warmup 前導 NaN 不算 stale）；
+    只用慢變數，禁止 VIX/單日跌幅等快變數觸發翻轉
+  - **action gating**：個股規則零改動；BEAR 下唯一行為改變 = 買入訊號（pullback）改寫為
+    `frozen`（🔒 凍結加碼，灰藍 chip + 標題鎖形），賣出/其餘不變、永不新增自動賣出。
+    優先序：`narrative.json`（選用，`{TICKER:{"mode":"exit"}}` 禁止買入訊號）> regime FROZEN > 技術訊號
+  - **敘事檢查點** `macro_checkpoints.json`（人工維護、可證偽清單）：只計 `evidence_count`
+    並原樣傳遞，不參與狀態機；缺檔/格式錯誤 → evidence_count=null、pipeline 不中斷；
+    triggered 非 bool 或 date 非 ISO → 跳過該筆記 warning
+  - 前端（大盤總覽頂部）：Regime 橫幅（BEAR=暗紅底）、sector_rMOM 折線（1.0/1.3 門檻線+緩衝帶）
+    + 累積α + Breadth 面積圖（0.30/0.45 參考線）共用 dataZoom、檢查點卡片、判讀矩陣
+    （regime × evidence 的人工決策指引，當前組合高亮）；說明見 `KINFO.regime`
+  - pytest 驗收：`python -m pytest tests/test_macro_regime.py`（無網路，涵蓋規格 §10：
+    遲滯/AND/confirm 歸零/gating/優先序/防前視/邊界/Breadth 分母）
 - 持股明細：讀 `ibkr_data.json` 顯示 IBKR 帳戶總覽與持股表
   - 帳戶淨值折線（`compute_portfolio_history()` 讀 `nav_history.json` 真實每日 NAV，
     從有記錄第一天起取**累積對數報酬** 100·ln(Vt/V0)（`_cum_ln`，起點 0）；IBKR 無歷史
