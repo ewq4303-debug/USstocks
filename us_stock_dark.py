@@ -16,6 +16,8 @@ import pandas as pd
 import numpy as np
 import concurrent.futures
 
+import macro_regime
+
 try:
     from zoneinfo import ZoneInfo
     ET = ZoneInfo("America/New_York")
@@ -69,6 +71,12 @@ RM_Z_SHORT_WINDOW = 21     # 短期 Z-Score 視窗
 RM_Z_STD_WINDOW   = 252    # Z-Score 分母波動率估計視窗
 RM_MARKET_ETF     = "SPY"  # 市場因子
 
+# 宏觀 Regime 層 (SPEC_macro_regime)：SOXX vs SPY 單因子 sector_rMOM + Breadth
+MACRO_SECTOR_ETF  = "SOXX"
+MACRO_REGIME_FILE = f"{OUTPUT_DIR}/data/macro_regime.json"
+MACRO_CHECKPOINTS_FILE = "macro_checkpoints.json"  # 敘事檢查點 (人工維護)
+NARRATIVE_FILE    = "narrative.json"  # 選用: {TICKER: {"mode": "exit"}} → 禁止該股任何買入訊號
+
 # yfinance info['sector'] → SPDR 類股 ETF (半導體業另以 SOXX 覆寫)
 YF_SECTOR_ETF = {
     "Technology": "XLK", "Financial Services": "XLF", "Healthcare": "XLV",
@@ -85,10 +93,12 @@ RM_SIGNAL_ZH = {
 RM_ACTION_ZH = {
     "pullback": "加碼黃金點", "overheat": "部分調節", "strong": "順勢續抱",
     "weak": "減碼/退出", "neutral": "觀望", "no_signal": "不採信回歸",
+    "frozen": "凍結加碼(宏觀)",  # regime BEAR 下買入訊號的改寫值，賣出不受影響
 }
 RM_ACTION_COLOR = {
     "pullback": "#22d39a", "overheat": "#e0a83c", "strong": "#22d39a",
     "weak": "#ff525b", "neutral": "#8b95a5", "no_signal": "#5d6675",
+    "frozen": "#6b7fa3",
 }
 
 # =========================================================
@@ -422,6 +432,8 @@ def write_residual_series_json(stocks_data, out_dir=f"{OUTPUT_DIR}/data/series")
         payload = {
             "ticker": tk,
             "sector_etf": rm.get("sector_etf"),
+            "signal": rm.get("signal"),
+            "action": rm.get("action", rm.get("signal")),  # regime gating 後 (BEAR 下買入 → frozen)
             "dates": [d.strftime("%Y-%m-%d") for d in rm["cum_alpha"].index[sel]],
             "cum_alpha": col(rm["cum_alpha"]),
             "ma20": col(rm["cum_ma20"]),
@@ -441,6 +453,78 @@ def write_residual_series_json(stocks_data, out_dir=f"{OUTPUT_DIR}/data/series")
             print(f"    [Warn] {tk} 序列 JSON 輸出失敗: {e}")
     print(f"  ✓ 殘差動能序列 JSON × {count} → {out_dir}/")
     return count
+
+# =========================================================
+# 宏觀 Regime 層 (SPEC_macro_regime)
+# 順序: 個股 rMOM/Z_short → Breadth → sector 迴歸 → sector_rMOM →
+#       regime 狀態機 → 讀 macro_checkpoints.json → action gating → macro_regime.json
+# =========================================================
+def load_narrative(path=NARRATIVE_FILE):
+    """選用的人工敘事標記檔 {TICKER: {"mode": "exit"}}；exit 模式股票禁止任何買入訊號。
+    檔案缺失/格式錯誤 → 空 dict，pipeline 不中斷。"""
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        print(f"  ⚠️ narrative.json 讀取失敗，忽略: {e}")
+        return {}
+
+def compute_macro_regime(stocks_data, factors, out_file=MACRO_REGIME_FILE,
+                         checkpoints_path=MACRO_CHECKPOINTS_FILE):
+    """sector_rMOM (SOXX vs SPY 單因子，防前視比照個股層) + Breadth → regime 狀態機。
+
+    sector 層資料不足 → 回傳 None (前端顯示「資料累積中」)，JSON 寫入占位。"""
+    payload = None
+    try:
+        spy = factors.get(RM_MARKET_ETF)
+        soxx = factors.get(MACRO_SECTOR_ETF)
+        sector_rmom = sector_cum = None
+        if spy is not None and soxx is not None:
+            # 單因子: 把 SOXX 當一檔股票對 SPY 回歸 (不可再放 SOXX 自己)
+            sec = compute_residual_momentum(soxx, spy, None)
+            sector_rmom, sector_cum = sec["rmom_series"], sec["cum_alpha"]
+        rmom_by_ticker = {tk: rec["resid"]["rmom_series"]
+                          for tk, rec in stocks_data.items() if rec.get("resid")}
+        payload = macro_regime.build_macro_regime(
+            sector_rmom, sector_cum, rmom_by_ticker, checkpoints_path=checkpoints_path)
+    except Exception as e:
+        print(f"  ⚠️ 宏觀 regime 計算失敗: {e}")
+    try:
+        macro_regime.write_macro_regime_json(payload, out_file)
+    except Exception as e:
+        print(f"  ⚠️ macro_regime.json 輸出失敗: {e}")
+    if payload:
+        for w in payload.get("warnings", []):
+            print(f"  ⚠️ [regime] {w}")
+        ev = payload.get("evidence_count")
+        print(f"  ✓ 宏觀 Regime: {payload['regime']} | sector_rMOM "
+              f"{payload.get('sector_rmom')} · Breadth {payload.get('breadth')} · "
+              f"敘事證據 {'-' if ev is None else ev}")
+    else:
+        print("  ⚠️ 宏觀 Regime: 資料累積中 (sector 層歷史不足)")
+    return payload
+
+def apply_regime_gating(stocks_data, regime_payload, narrative=None):
+    """在個股 action (= signal 推導的建議) 之上加 regime gate (§6)。
+
+    優先序: narrative exit > regime FROZEN > 技術訊號；賣出訊號永不被 regime 阻擋。"""
+    regime = regime_payload.get("regime") if regime_payload else None
+    narrative = narrative if narrative is not None else load_narrative()
+    frozen = []
+    for tk, rec in stocks_data.items():
+        rm = rec.get("resid")
+        if not rm:
+            continue
+        mode = (narrative.get(tk) or {}).get("mode") if isinstance(narrative.get(tk), dict) else None
+        rm["action"] = macro_regime.gate_action(rm["signal"], regime, mode)
+        if rm["action"] == "frozen":
+            frozen.append(tk)
+    if frozen:
+        print(f"  ✓ regime BEAR 凍結加碼: {', '.join(frozen)}")
+    return frozen
 
 # =========================================================
 # 個股資料 (yfinance)
@@ -1142,12 +1226,18 @@ def generate_stock_card(ticker: str, data: dict, opt: dict, fund: dict) -> str:
         news_html += f'<div class="news-item"><div class="d">{n.get("date","")}</div><a href="{n.get("link","#")}" target="_blank">{n.get("title","")}</a></div>'
     if not news_html: news_html = "<div class='news-item' style='color:var(--ink-3)'>近期無相關新聞</div>"
 
+    # 宏觀 regime 凍結加碼 → 灰藍色鎖形 chip (SPEC_macro_regime §8.5)
+    rm0 = data.get("resid") or {}
+    frozen_chip = ('<span class="frozen-chip" title="宏觀 regime 凍結加碼：個股符合加碼條件 '
+                   '(rMOM≥1 且 Z≤−2)，但 regime=BEAR 凍結所有買入訊號；賣出邏輯不受影響">'
+                   '🔒 凍結加碼</span>') if rm0.get("action") == "frozen" else ""
+
     return f"""
     <div class="stock-card {'active' if data.get('_first') else ''}" id="card_{ticker}">
       <div class="sc-body">
         <div class="sc-header" onclick="toggleCard('{ticker}')">
           <span class="chevron mobile-only" id="chev_{ticker}">▶</span>
-          <div><div class="sc-id">{ticker} · {fund.get('sector','')}</div>
+          <div><div class="sc-id">{ticker} · {fund.get('sector','')}{frozen_chip}</div>
             <div class="sc-name">{data.get('name','')[:24]} <span class="sc-price {c_cls}">${close_price:,.2f} <span style="font-size:13px">({change_str})</span></span></div></div>
           <div class="sc-meta">
             <div class="block"><div class="k">分析師目標價</div><div class="v target">{target_str}</div></div>
@@ -1567,10 +1657,12 @@ def generate_chart_scripts(stocks_data, options_data, md, trade_markers=None):
             a_txt = f"α年化 {ra_last*252*100:+.1f}%" if pd.notna(ra_last) else "α年化 -"
             rm_txt = f"rMOM {resid['rmom']:.2f}" if pd.notna(resid["rmom"]) else "rMOM -"
             sig = resid["signal"]
-            resid_act_color = RM_ACTION_COLOR.get(sig, "#8b95a5")
+            act = resid.get("action", sig)  # regime gating 後的建議 (BEAR 下買入 → frozen)
+            resid_act_color = RM_ACTION_COLOR.get(act, "#8b95a5")
             # [訊號] → 客觀建議（建議部分以富文本 {a|..} 上色）
+            lock = "🔒 " if act == "frozen" else ""
             resid_title = (f"殘差動能 vs {fct} · {b_txt} {r2_txt} · {a_txt} · {rm_txt} "
-                           f"[{RM_SIGNAL_ZH[sig]}] " + "{a|→ " + RM_ACTION_ZH.get(sig, "") + "}")
+                           f"[{RM_SIGNAL_ZH[sig]}] " + "{a|→ " + lock + RM_ACTION_ZH.get(act, "") + "}")
         ra_color = ["rgba(34,211,154,.45)" if (v is not None and v >= 0) else "rgba(255,82,91,.45)" for v in ra_vals]
 
         # tooltip 只顯示游標所屬副圖 (grid) 的 series；價格 2 位小數、α年化 %、量千分位。
@@ -2328,6 +2420,31 @@ body{font-family:var(--sans);color:var(--ink);line-height:1.5;padding:20px;min-h
   .stock-card.expanded .sc-detail{display:block}
   .sc-name{font-size:16px}
 }
+
+/* ===== 宏觀 Regime 層 (SPEC_macro_regime) ===== */
+.regime-banner{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:12px 18px;
+  border-radius:12px;border:1px solid var(--line);background:var(--surface);margin-bottom:14px}
+.regime-banner .rg-state{font-size:15px;font-weight:800;letter-spacing:.4px}
+.regime-banner.normal .rg-state{color:var(--up)}
+.regime-banner.bear{background:#2a1216;border-color:#5c2029}
+.regime-banner.bear .rg-state{color:var(--down)}
+.regime-banner.na .rg-state{color:var(--ink-2)}
+.regime-banner .rg-meta{font-size:12px;color:var(--ink-2);font-family:'IBM Plex Mono',monospace}
+.regime-banner .rg-flag{font-size:11px;padding:2px 8px;border-radius:20px;background:var(--surface-3);
+  color:var(--ink-2);border:1px solid var(--line)}
+.regime-banner .rg-flag.warn{color:#e0a83c;border-color:#5c4a20}
+.frozen-chip{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:20px;font-size:11px;
+  font-weight:700;color:#a9bbdd;background:rgba(107,127,163,.18);border:1px solid #6b7fa3;cursor:help}
+.ckpt-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--line-2);font-size:13px}
+.ckpt-row:last-child{border-bottom:none}
+.ckpt-row .ckpt-ic{width:20px;text-align:center}
+.ckpt-row.hit{color:var(--down)}
+.ckpt-row .ckpt-date{margin-left:auto;font-size:11px;color:var(--ink-3);font-family:'IBM Plex Mono',monospace}
+.rg-matrix{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+.rg-matrix th,.rg-matrix td{padding:7px 10px;border-bottom:1px solid var(--line-2);text-align:left;color:var(--ink-2)}
+.rg-matrix th{color:var(--ink-3);font-weight:600}
+.rg-matrix tr.cur td{background:rgba(77,127,255,.10);color:var(--ink)}
+.rg-matrix td.num{font-family:'IBM Plex Mono',monospace}
 """
 
 def build_alloc_data(positions, top_n=14):
@@ -2959,9 +3076,154 @@ def generate_perf_chart_script(pm):
 """
 
 
-def generate_html(stocks_data, options_data, fund_data, md):
+def generate_macro_regime_section(payload):
+    """宏觀 Regime 區塊：橫幅 + sector_rMOM/Breadth 圖 + 敘事檢查點 + 判讀矩陣。
+    置於大盤總覽 (預設分頁) 頂部 = 頁面頂部。payload=None → 資料累積中。"""
+    if not payload:
+        return ('<div class="regime-banner na"><span class="rg-state">🌐 宏觀 Regime：資料累積中</span>'
+                '<span class="rg-meta">sector 層歷史不足（需 ≥ 252+21 交易日）</span></div>')
+    regime = payload.get("regime") or "NORMAL"
+    bear = regime == "BEAR"
+    cls = "bear" if bear else "normal"
+    icon = "🐻" if bear else "🟢"
+    sr = payload.get("sector_rmom")
+    br = payload.get("breadth")
+    sr_txt = f"{sr:.2f}" if sr is not None else "-"
+    br_txt = f"{br*100:.1f}%" if br is not None else "-"
+    since = payload.get("regime_changed_at") or (payload.get("sector_rmom_series") or [[None]])[0][0] or "-"
+    flags = payload.get("flags") or {}
+    flag_html = ""
+    if flags.get("stale"):
+        flag_html += '<span class="rg-flag warn">⚠ sector 資料 stale（沿用前值）</span>'
+    if flags.get("low_sample"):
+        flag_html += f'<span class="rg-flag warn">⚠ 有效樣本 {payload.get("universe_valid",0)} 檔 &lt; 10，狀態機暫停翻轉</span>'
+
+    ev = payload.get("evidence_count")
+    ckpts = payload.get("checkpoints") or []
+    ev_txt = "未設定" if ev is None else f"{ev} / {len(ckpts)}"
+    ck_rows = ""
+    for c in ckpts:
+        hit = bool(c.get("triggered"))
+        ck_rows += (f'<div class="ckpt-row {"hit" if hit else ""}">'
+                    f'<span class="ckpt-ic">{"✅" if hit else "⬜"}</span>'
+                    f'<span>{c.get("desc","")}</span>'
+                    f'<span class="ckpt-date">{c.get("date") or ""}</span></div>')
+    if not ck_rows:
+        ck_rows = '<div class="ckpt-row"><span style="color:var(--ink-3)">未設定敘事檢查點（macro_checkpoints.json）</span></div>'
+
+    # 判讀矩陣：量化 regime × 敘事證據數 → 人工決策指引（不自動觸發任何動作）
+    cur = None
+    if ev is not None:
+        cur = (("BEAR" if bear else "NORMAL"), "hi" if ev >= 2 else "lo")
+    rows = [
+        (("NORMAL", "lo"), "NORMAL", "0-1", "正常操作"),
+        (("NORMAL", "hi"), "NORMAL", "≥ 2", "敘事領先價格，人工考慮提前降曝險"),
+        (("BEAR", "lo"), "BEAR", "0-1", "疑似部位出清而非基本面反轉，凍結加碼、不砍強勢股"),
+        (("BEAR", "hi"), "BEAR", "≥ 2", "敘事獲確認，人工執行降 beta（減總曝險 / 指數對沖）"),
+    ]
+    matrix = "".join(
+        f'<tr class="{"cur" if key == cur else ""}"><td>{rg}</td><td class="num">{evb}</td><td>{desc}</td></tr>'
+        for key, rg, evb, desc in rows)
+
+    narrative = payload.get("narrative") or "宏觀敘事"
+    cfg = payload.get("config", {})
+    return f"""
+    <div class="regime-banner {cls}">
+      <span class="rg-state">{icon} 宏觀 Regime：{regime}</span>
+      <span class="rg-meta">自 {since} 起 · sector_rMOM {sr_txt} · Breadth {br_txt}
+        （有效 {payload.get('universe_valid','-')}/{payload.get('universe_total','-')} 檔）· 敘事證據 {ev_txt}</span>
+      {flag_html}
+      <span class="rg-flag">{'BEAR：凍結所有買入訊號顯示，賣出邏輯不變' if bear else '加碼許可正常'}</span>
+    </div>
+    <div class="card"><div class="card-title"><span>半導體 sector_rMOM（SOXX vs SPY 單因子）× 市場寬度 Breadth
+      <i class="kinfo" onclick="showKInfo(event,'regime')">i</i></span></div>
+      <div id="macro_regime_chart" class="chart-box" style="height:430px;"></div></div>
+    <div class="card"><div class="card-title"><span>敘事檢查點 · {narrative} · 證據 {ev_txt}</span></div>
+      <div style="padding:6px 14px 12px">{ck_rows}
+        <table class="rg-matrix">
+          <tr><th>量化 regime</th><th>敘事證據</th><th>判讀（人工決策指引）</th></tr>
+          {matrix}
+        </table>
+        <div style="font-size:11px;color:var(--ink-3);margin-top:8px">
+          進 BEAR：sector_rMOM &lt; {cfg.get('bear_enter_sector_rmom',1.0)} 且 Breadth &lt; {cfg.get('bear_enter_breadth',0.30):.0%}；
+          出 BEAR：sector_rMOM &gt; {cfg.get('bear_exit_sector_rmom',1.3)} 且 Breadth &gt; {cfg.get('bear_exit_breadth',0.45):.0%}；
+          均需連續 {cfg.get('confirm_days',3)} 個交易日確認（遲滯緩衝帶維持前狀態）。
+          檢查點為人工維護的可證偽清單，只做展示與計數，不觸發 regime 翻轉。</div>
+      </div></div>"""
+
+def generate_macro_regime_chart_script(payload):
+    """sector_rMOM 折線 (門檻 1.0/1.3 + 緩衝帶) + 累積 Alpha + Breadth 面積圖，共用 dataZoom。"""
+    if not payload or not payload.get("sector_rmom_series"):
+        return ""
+    T = THEME
+    sr = {d: v for d, v in payload.get("sector_rmom_series", [])}
+    ca = {d: v for d, v in payload.get("sector_cum_alpha_series", [])}
+    br = {d: v for d, v in payload.get("breadth_series", [])}
+    dates = sorted(set(sr) | set(br))
+    sr_vals = [sr.get(d) for d in dates]
+    ca_vals = [round(v * 100, 2) if (v := ca.get(d)) is not None else None for d in dates]  # 累積對數超額報酬 %
+    br_vals = [br.get(d) for d in dates]
+    cfg = payload.get("config", {})
+    en_s, ex_s = cfg.get("bear_enter_sector_rmom", 1.0), cfg.get("bear_exit_sector_rmom", 1.3)
+    en_b, ex_b = cfg.get("bear_enter_breadth", 0.30), cfg.get("bear_exit_breadth", 0.45)
+    return f"""
+var mrc = echarts.init(document.getElementById('macro_regime_chart'));
+mrc.setOption({{
+  title: [
+    {{ text: 'sector_rMOM (左) · 累積α% (右) — 半導體相對大盤的持續強勢結構', left: '5%', top: '1%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
+    {{ text: 'Breadth — universe 中 rMOM ≥ 1 的比例', left: '5%', top: '58%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
+  ],
+  legend: {{ data: ['sector_rMOM','累積α','Breadth'], top: '1%', right: '5%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+  tooltip: {{ trigger: 'axis', confine: true, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1,
+    textStyle: {{color: '{T["tooltip_text"]}', fontSize: 12, fontFamily: 'IBM Plex Mono'}},
+    formatter: function(ps){{
+      var h = '<div style="font-size:11px;color:{T["axis_label"]};margin-bottom:3px">' + (ps[0].axisValueLabel||ps[0].name) + '</div>';
+      ps.forEach(function(p){{ var v = p.value;
+        if (v == null || isNaN(v)) return;
+        if (p.seriesName === 'Breadth') h += p.marker + 'Breadth&nbsp; ' + (v*100).toFixed(1) + '%<br>';
+        else if (p.seriesName === '累積α') h += p.marker + '累積α&nbsp; ' + Number(v).toFixed(1) + '%<br>';
+        else h += p.marker + p.seriesName + '&nbsp; ' + Number(v).toFixed(2) + '<br>'; }});
+      return h; }},
+    axisPointer: {{ type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}} }} }},
+  axisPointer: {{ link: {{xAxisIndex: 'all'}} }},
+  grid: [
+    {{ left: '5%', right: '5%', top: '9%', height: '42%' }},
+    {{ left: '5%', right: '5%', top: '64%', height: '24%' }}
+  ],
+  xAxis: [
+    {{ type: 'category', gridIndex: 0, data: {json.dumps(dates)}, boundaryGap: false, axisLabel: {{show: false}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+    {{ type: 'category', gridIndex: 1, data: {json.dumps(dates)}, boundaryGap: false, axisLabel: {{fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}
+  ],
+  yAxis: [
+    {{ type: 'value', gridIndex: 0, scale: true, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+    {{ type: 'value', gridIndex: 0, position: 'right', scale: true, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0)+'%';}}}}, splitLine: {{show: false}} }},
+    {{ type: 'value', gridIndex: 1, min: 0, max: 1, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return (v*100).toFixed(0)+'%';}}}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }}
+  ],
+  dataZoom: [
+    {{ type: 'inside', xAxisIndex: [0,1], start: 0, end: 100 }},
+    {{ show: true, type: 'slider', xAxisIndex: [0,1], bottom: 6, height: 14, start: 0, end: 100, borderColor: '{T["dz_border"]}', fillerColor: '{T["dz_filler"]}', handleStyle: {{color: '{T["dz_handle"]}'}}, textStyle: {{color: '{T["dz_text"]}'}}, dataBackground: {{lineStyle: {{color: '{T["dz_bg_line"]}'}}, areaStyle: {{color: '{T["dz_bg_area"]}'}}}} }}
+  ],
+  series: [
+    {{ name: 'sector_rMOM', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(sr_vals)}, showSymbol: false, connectNulls: false, lineStyle: {{width: 1.6, color: '{T["ma20"]}'}},
+       markLine: {{ silent: true, symbol: 'none', label: {{show: true, position: 'insideEndTop', fontSize: 9, color: '{T["axis_label"]}', formatter: function(p){{return p.value.toFixed(1);}}}}, data: [
+         {{yAxis: {en_s}, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.9}}}},
+         {{yAxis: {ex_s}, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.9}}}} ] }},
+       markArea: {{ silent: true, data: [[{{yAxis: {en_s}, itemStyle: {{color: 'rgba(139,149,165,.08)'}}}}, {{yAxis: {ex_s}}}]] }} }},
+    {{ name: '累積α', type: 'line', xAxisIndex: 0, yAxisIndex: 1, data: {json.dumps(ca_vals)}, showSymbol: false, connectNulls: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}}, opacity: .8 }},
+    {{ name: 'Breadth', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(br_vals)}, showSymbol: false, connectNulls: false, areaStyle: {{color: 'rgba(77,127,255,.20)'}}, lineStyle: {{width: 1.2, color: '{T["ma50"]}'}},
+       markLine: {{ silent: true, symbol: 'none', label: {{show: true, position: 'insideEndTop', fontSize: 9, color: '{T["axis_label"]}', formatter: function(p){{return (p.value*100).toFixed(0)+'%';}}}}, data: [
+         {{yAxis: {en_b}, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.9}}}},
+         {{yAxis: {ex_b}, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.9}}}} ] }} }}
+  ]
+}});
+window.addEventListener('resize', function(){{ mrc.resize(); }});
+"""
+
+def generate_html(stocks_data, options_data, fund_data, md, regime_payload=None):
     update_time = now_et().strftime("%Y-%m-%d %H:%M")
-    market_section = generate_market_section(md)
+    # 宏觀 Regime 橫幅置於大盤總覽 (預設分頁) 最上方 = 頁面頂部
+    market_section = generate_macro_regime_section(regime_payload) + generate_market_section(md)
+    macro_chart_script = generate_macro_regime_chart_script(regime_payload)
     rating_table = generate_rating_table(stocks_data)
 
     ibkr = load_ibkr_data()
@@ -3073,6 +3335,7 @@ def generate_html(stocks_data, options_data, fund_data, md):
 var GAS_URL = '{GAS_URL}';
 var TRIGGER_URL = '{TRIGGER_URL}';
 {chart_scripts}
+{macro_chart_script}
 {holdings_chart_script}
 {perf_chart_script}
 
@@ -3252,7 +3515,10 @@ var KINFO = {{
         s: 'K 上穿 D 為買、下穿為賣；20 以下超賣、80 以上超買；低檔黃金交叉最佳，高檔死亡交叉宜減碼。' }},
   macd: {{ t: 'MACD 指數平滑異同移動平均', d: '衡量中期多空動能與趨勢轉折的動能指標。',
         c: 'DIF=EMA12−EMA26，Signal＝DIF 的 EMA9，柱狀 Hist=DIF−Signal（參數 12,26,9）。',
-        s: 'DIF 上穿 Signal（柱翻正）為買、下穿為賣；柱在 0 軸上方且擴張動能強；高檔價漲而 MACD 不創高（背離）留意轉弱。' }}
+        s: 'DIF 上穿 Signal（柱翻正）為買、下穿為賣；柱在 0 軸上方且擴張動能強；高檔價漲而 MACD 不創高（背離）留意轉弱。' }},
+  regime: {{ t: '宏觀 Regime（sector_rMOM × Breadth）', d: '在個股殘差動能之上的「該持有多少」宏觀判斷層。sector_rMOM 把 SOXX 當一檔股票對 SPY 做滾動單因子回歸取殘差，衡量半導體相對大盤的持續強勢結構是否仍在（宏觀空頭敘事的唯一量化檢驗入口）；Breadth＝觀察清單中 rMOM≥1 的比例，衡量強勢結構的廣度。只用慢變數，單日價格波動不會翻轉 regime。',
+        c: 'sector_rMOM＝Σε(t−252~t−21)÷[std(ε)×√N]，迴歸係數 shift(1) 防前視；Breadth(t)＝count(rMOM≥1)÷count(當日 rMOM 可計算的 ticker)，歷史不足的新股不進分母。狀態機（遲滯＋3 日確認）：NORMAL→BEAR 需 sector_rMOM<1.0 且 Breadth<30% 連續 3 日；BEAR→NORMAL 需 sector_rMOM>1.3 且 Breadth>45% 連續 3 日；緩衝帶維持前狀態。',
+        s: 'regime 只影響「加碼許可」，永不產生賣出訊號：BEAR 下所有買入訊號（加碼黃金點）改顯 🔒 凍結加碼，個股減碼/退出邏輯不變。搭配敘事檢查點判讀：NORMAL+證據≥2 → 敘事領先價格，考慮提前降曝險；BEAR+證據0-1 → 疑似部位出清，凍結加碼但不砍強勢股；BEAR+證據≥2 → 敘事獲確認，人工降 beta。' }}
 }};
 function showKInfo(ev, key){{
     ev.stopPropagation();
@@ -3329,6 +3595,7 @@ def main():
     print("\n[2/5] 計算殘差動能 (滾動雙因子回歸 vs SPY/類股 ETF)...")
     needed_etfs = {sector_etf_for(fund_data.get(tk, {})) for tk in stocks_data}
     needed_etfs.discard(None)
+    needed_etfs.add(MACRO_SECTOR_ETF)  # 宏觀 regime 層 sector 迴歸用
     factors = fetch_factor_closes(needed_etfs)
     mkt_close = factors.get(RM_MARKET_ETF)
     for tk, record in stocks_data.items():
@@ -3346,7 +3613,10 @@ def main():
             print(f"  ✓ {tk} vs SPY{'+' + sec_sym if rm['sector_etf'] else ''} | rMOM {rm_txt} · {RM_SIGNAL_ZH[rm['signal']]}")
         except Exception as e:
             print(f"  ⚠️ {tk} 殘差動能計算失敗: {e}")
-    write_residual_series_json(stocks_data)
+    print("\n[2.5/5] 宏觀 Regime (sector_rMOM + Breadth + 敘事檢查點)...")
+    regime_payload = compute_macro_regime(stocks_data, factors)
+    apply_regime_gating(stocks_data, regime_payload)
+    write_residual_series_json(stocks_data)  # gating 之後輸出，序列 JSON 才帶最終 action
 
     print("\n[3/5] 抓取大盤/總經...")
     md = get_market_overview()
@@ -3356,7 +3626,7 @@ def main():
     stocks_data = dict(sorted(stocks_data.items(), key=lambda kv: (ORDER.get(kv[1]["rating"]["rating_key"], 9), -kv[1]["rating"]["total"])))
 
     print("\n[4/5] 生成 HTML...")
-    html = generate_html(stocks_data, options_data, fund_data, md)
+    html = generate_html(stocks_data, options_data, fund_data, md, regime_payload)
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"  ✓ {OUTPUT_FILE}")

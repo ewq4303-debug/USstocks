@@ -1,0 +1,10 @@
+{
+  "narrative": "AI capex 見頂 / 記憶體週期反轉（Burry 論點）",
+  "updated_at": "2026-07-03",
+  "checkpoints": [
+    { "id": "capex_guidance_cut", "desc": "任一 hyperscaler 下修 capex 指引", "triggered": false, "date": null },
+    { "id": "dram_contract_neg", "desc": "DRAM 合約價環比轉負", "triggered": false, "date": null },
+    { "id": "lta_renegotiation", "desc": "美光長約出現重談/取消新聞", "triggered": false, "date": null },
+    { "id": "hbm_order_cut", "desc": "HBM 訂單砍單訊息獲兩家以上媒體證實", "triggered": false, "date": null }
+  ]
+}
