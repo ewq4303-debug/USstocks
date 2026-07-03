@@ -71,10 +71,11 @@ RM_Z_SHORT_WINDOW = 21     # 短期 Z-Score 視窗
 RM_Z_STD_WINDOW   = 252    # Z-Score 分母波動率估計視窗
 RM_MARKET_ETF     = "SPY"  # 市場因子
 
-# 宏觀 Regime 層 (SPEC_macro_regime)：SOXX vs SPY 單因子 sector_rMOM + Breadth
+# 宏觀 Regime 層 v2 (SPEC_macro_regime_v2)：sector_rMOM 單獨判定 + 雙 Breadth + 跨板塊
 MACRO_SECTOR_ETF  = "SOXX"
 MACRO_REGIME_FILE = f"{OUTPUT_DIR}/data/macro_regime.json"
 MACRO_CHECKPOINTS_FILE = "macro_checkpoints.json"  # 敘事檢查點 (人工維護)
+REF_UNIVERSE_FILE = "ref_universe.json"  # 規則型對照 universe (人工維護，如 SOXX 前 30 大)
 NARRATIVE_FILE    = "narrative.json"  # 選用: {TICKER: {"mode": "exit"}} → 禁止該股任何買入訊號
 
 # yfinance info['sector'] → SPDR 類股 ETF (半導體業另以 SOXX 覆寫)
@@ -455,9 +456,10 @@ def write_residual_series_json(stocks_data, out_dir=f"{OUTPUT_DIR}/data/series")
     return count
 
 # =========================================================
-# 宏觀 Regime 層 (SPEC_macro_regime)
-# 順序: 個股 rMOM/Z_short → Breadth → sector 迴歸 → sector_rMOM →
-#       regime 狀態機 → 讀 macro_checkpoints.json → action gating → macro_regime.json
+# 宏觀 Regime 層 v2 (SPEC_macro_regime_v2)
+# 順序: 個股殘差 (手選 ∪ ref_universe，共用快取) → 個股 rMOM/Z_short →
+#       Breadth_own/ref/Divergence → SOXX+跨板塊 sector 迴歸 → regime 狀態機 v2 (含 WARMUP)
+#       → 塌陷警報 → 讀 macro_checkpoints.json → action gating → macro_regime.json (schema v2)
 # =========================================================
 def load_narrative(path=NARRATIVE_FILE):
     """選用的人工敘事標記檔 {TICKER: {"mode": "exit"}}；exit 模式股票禁止任何買入訊號。
@@ -472,24 +474,83 @@ def load_narrative(path=NARRATIVE_FILE):
         print(f"  ⚠️ narrative.json 讀取失敗，忽略: {e}")
         return {}
 
+def fetch_close_series(ticker: str, period: str = RM_FETCH_PERIOD):
+    """輕量還原收盤價抓取 (ref_universe 專用，不抓 info/選擇權/新聞)。"""
+    try:
+        df = yf.Ticker(ticker).history(period=period)
+        if df is None or df.empty:
+            return None
+        s = df["Close"].dropna()
+        s = s[s > 0]
+        return s if len(s) else None
+    except Exception as e:
+        print(f"    [Warn] ref {ticker} 收盤價抓取失敗: {e}")
+        return None
+
+def compute_ref_rmom(ref_tickers, stocks_data, spy, soxx, fetch_close=None):
+    """對照 universe 逐檔 rMOM：與個股層完全相同的雙因子迴歸 (SPY+SOXX)。
+
+    與手選清單重疊的 ticker 共用快取 (直接取 stocks_data 既有殘差結果，不重跑迴歸)。"""
+    fetch_close = fetch_close or fetch_close_series
+    out = {}
+    for tk in ref_tickers:
+        rec = stocks_data.get(tk) or {}
+        rm = rec.get("resid")
+        if rm and rm.get("rmom_series") is not None:
+            out[tk] = rm["rmom_series"]  # 共用快取
+            continue
+        if spy is None:
+            continue
+        close = fetch_close(tk)
+        if close is None:
+            continue
+        try:
+            out[tk] = compute_residual_momentum(close, spy, soxx)["rmom_series"]
+        except Exception as e:
+            print(f"    [Warn] ref {tk} 殘差計算失敗: {e}")
+    return out
+
 def compute_macro_regime(stocks_data, factors, out_file=MACRO_REGIME_FILE,
-                         checkpoints_path=MACRO_CHECKPOINTS_FILE):
-    """sector_rMOM (SOXX vs SPY 單因子，防前視比照個股層) + Breadth → regime 狀態機。
+                         checkpoints_path=MACRO_CHECKPOINTS_FILE,
+                         ref_universe_path=REF_UNIVERSE_FILE, fetch_close=None):
+    """宏觀 Regime v2：跨板塊 sector 迴歸 (各 ETF vs SPY 單因子) + 雙 Breadth →
+    regime 狀態機 v2 (只用 SOXX sector_rMOM) + 塌陷警報。
 
     sector 層資料不足 → 回傳 None (前端顯示「資料累積中」)，JSON 寫入占位。"""
     payload = None
     try:
         spy = factors.get(RM_MARKET_ETF)
-        soxx = factors.get(MACRO_SECTOR_ETF)
         sector_rmom = sector_cum = None
-        if spy is not None and soxx is not None:
-            # 單因子: 把 SOXX 當一檔股票對 SPY 回歸 (不可再放 SOXX 自己)
-            sec = compute_residual_momentum(soxx, spy, None)
-            sector_rmom, sector_cum = sec["rmom_series"], sec["cum_alpha"]
-        rmom_by_ticker = {tk: rec["resid"]["rmom_series"]
-                          for tk, rec in stocks_data.items() if rec.get("resid")}
+        cross = []
+        if spy is not None:
+            for sym, label in macro_regime.CROSS_SECTOR_CONFIG["sectors"].items():
+                close = factors.get(sym)
+                if close is None:
+                    print(f"    [Warn] 板塊 {sym} 無資料，跨板塊面板缺席 (不影響其他板塊)")
+                    continue
+                try:  # 單因子: 各板塊 ETF 對 SPY 回歸 (方法同 v1 §2)
+                    sec = compute_residual_momentum(close, spy, None)
+                except Exception as e:
+                    print(f"    [Warn] 板塊 {sym} 迴歸失敗: {e}")
+                    continue
+                cross.append({"ticker": sym, "label": label, "rmom_series": sec["rmom_series"]})
+                if sym == MACRO_SECTOR_ETF:
+                    sector_rmom, sector_cum = sec["rmom_series"], sec["cum_alpha"]
+        rmom_own = {tk: rec["resid"]["rmom_series"]
+                    for tk, rec in stocks_data.items() if rec.get("resid")}
+        ref = macro_regime.load_ref_universe(ref_universe_path)
+        rmom_ref, ref_name = None, None
+        if ref:
+            ref_name = ref.get("name")
+            rmom_ref = compute_ref_rmom(ref["tickers"], stocks_data, spy,
+                                        factors.get(MACRO_SECTOR_ETF), fetch_close)
+            if not rmom_ref:
+                rmom_ref = None
+        else:
+            print("  ⚠️ ref_universe 未設定/不足 15 檔，對照層輸出 null")
         payload = macro_regime.build_macro_regime(
-            sector_rmom, sector_cum, rmom_by_ticker, checkpoints_path=checkpoints_path)
+            sector_rmom, sector_cum, rmom_own, rmom_ref, cross, ref_name,
+            checkpoints_path=checkpoints_path)
     except Exception as e:
         print(f"  ⚠️ 宏觀 regime 計算失敗: {e}")
     try:
@@ -500,9 +561,11 @@ def compute_macro_regime(stocks_data, factors, out_file=MACRO_REGIME_FILE,
         for w in payload.get("warnings", []):
             print(f"  ⚠️ [regime] {w}")
         ev = payload.get("evidence_count")
-        print(f"  ✓ 宏觀 Regime: {payload['regime']} | sector_rMOM "
-              f"{payload.get('sector_rmom')} · Breadth {payload.get('breadth')} · "
-              f"敘事證據 {'-' if ev is None else ev}")
+        sysm = payload.get("systemic")
+        print(f"  ✓ 宏觀 Regime v2: {payload['regime']} | sector_rMOM {payload.get('sector_rmom')} · "
+              f"Breadth own {payload.get('breadth_own')} / ref {payload.get('breadth_ref')} "
+              f"(Δ {payload.get('divergence')}) · Systemic {sysm} · "
+              f"警報 {len(payload.get('alerts') or [])} · 敘事證據 {'-' if ev is None else ev}")
     else:
         print("  ⚠️ 宏觀 Regime: 資料累積中 (sector 層歷史不足)")
     return payload
@@ -2429,6 +2492,18 @@ body{font-family:var(--sans);color:var(--ink);line-height:1.5;padding:20px;min-h
 .regime-banner.bear{background:#2a1216;border-color:#5c2029}
 .regime-banner.bear .rg-state{color:var(--down)}
 .regime-banner.na .rg-state{color:var(--ink-2)}
+.regime-banner.warmup{background:var(--surface-2);border-color:var(--line)}
+.regime-banner.warmup .rg-state{color:var(--ink-2)}
+.sys-chip{display:inline-block;margin-left:10px;padding:2px 10px;border-radius:20px;font-size:11px;
+  font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--ink-2);
+  background:var(--surface-3);border:1px solid var(--line);cursor:help;vertical-align:middle}
+.sys-chip.hot{color:#fff;background:rgba(255,82,91,.25);border-color:var(--down)}
+.cross-wrap{display:flex;gap:12px;align-items:stretch;padding:6px 14px 0}
+.cross-list{width:190px;flex:none;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.cross-row{display:flex;justify-content:space-between;font-size:12px;padding:5px 10px;
+  border-bottom:1px solid var(--line-2);color:var(--ink-2)}
+.cross-row:last-child{border-bottom:none}
+@media (max-width:980px){.cross-wrap{flex-direction:column}.cross-list{width:100%}}
 .regime-banner .rg-meta{font-size:12px;color:var(--ink-2);font-family:'IBM Plex Mono',monospace}
 .regime-banner .rg-flag{font-size:11px;padding:2px 8px;border-radius:20px;background:var(--surface-3);
   color:var(--ink-2);border:1px solid var(--line)}
@@ -3077,30 +3152,81 @@ def generate_perf_chart_script(pm):
 
 
 def generate_macro_regime_section(payload):
-    """宏觀 Regime 區塊：橫幅 + sector_rMOM/Breadth 圖 + 敘事檢查點 + 判讀矩陣。
-    置於大盤總覽 (預設分頁) 頂部 = 頁面頂部。payload=None → 資料累積中。"""
+    """宏觀 Regime 區塊 v2：橫幅 + sector_rMOM/雙 Breadth/Divergence 圖 + 跨板塊面板
+    + 敘事檢查點。置於大盤總覽 (預設分頁) 頂部。payload=None → 資料累積中。"""
     if not payload:
         return ('<div class="regime-banner na"><span class="rg-state">🌐 宏觀 Regime：資料累積中</span>'
                 '<span class="rg-meta">sector 層歷史不足（需 ≥ 252+21 交易日）</span></div>')
-    regime = payload.get("regime") or "NORMAL"
+    regime = payload.get("regime") or "WARMUP"
     bear = regime == "BEAR"
-    cls = "bear" if bear else "normal"
-    icon = "🐻" if bear else "🟢"
+    warmup = regime == "WARMUP"
+    cls = "bear" if bear else ("warmup" if warmup else "normal")
+    icon = "🐻" if bear else ("⏳" if warmup else "🟢")
     sr = payload.get("sector_rmom")
-    br = payload.get("breadth")
+    own = payload.get("breadth_own")
+    ref = payload.get("breadth_ref")
+    div = payload.get("divergence")
+    sysm = payload.get("systemic")
     sr_txt = f"{sr:.2f}" if sr is not None else "-"
-    br_txt = f"{br*100:.1f}%" if br is not None else "-"
+    own_txt = f"{own*100:.1f}%" if own is not None else "-"
+    ref_txt = f"{ref*100:.1f}%" if ref is not None else "未設定"
+    div_txt = f"{div*100:+.1f}pp" if div is not None else "-"
     since = payload.get("regime_changed_at") or (payload.get("sector_rmom_series") or [[None]])[0][0] or "-"
     flags = payload.get("flags") or {}
-    flag_html = ""
-    if flags.get("stale"):
-        flag_html += '<span class="rg-flag warn">⚠ sector 資料 stale（沿用前值）</span>'
-    if flags.get("low_sample"):
-        flag_html += f'<span class="rg-flag warn">⚠ 有效樣本 {payload.get("universe_valid",0)} 檔 &lt; 10，狀態機暫停翻轉</span>'
-
     ev = payload.get("evidence_count")
     ckpts = payload.get("checkpoints") or []
     ev_txt = "未設定" if ev is None else f"{ev} / {len(ckpts)}"
+
+    flag_html = ""
+    if flags.get("stale"):
+        flag_html += '<span class="rg-flag warn">⚠ sector 資料 stale（沿用前值）</span>'
+    if not flags.get("ref_universe_ok"):
+        flag_html += '<span class="rg-flag">對照 universe 未設定（ref_universe.json）</span>'
+    alerts = payload.get("alerts") or []
+    if alerts:
+        flag_html += (f'<span class="rg-flag warn" title="own 塌 ref 沒塌 = 選股風格問題；'
+                      f'兩者同塌 = 敘事層警報">🚨 BREADTH_CRASH × {len(alerts)}'
+                      f'（最近 {alerts[-1]["date"]}）</span>')
+
+    if warmup:
+        sub = "資料累積中，gating 未啟動"
+    elif bear:
+        sub = "sector_rMOM &lt; 1.0 · 凍結買入訊號顯示"
+    else:
+        sub = "加碼許可正常"
+
+    # 跨板塊當前值排序列表 + Systemic chip
+    cross = payload.get("cross_sector") or []
+    cross_sorted = sorted(cross, key=lambda c: (c.get("rmom") is None, -(c.get("rmom") or 0)))
+    cross_rows = ""
+    for c in cross_sorted:
+        v = c.get("rmom")
+        vcls = "up" if (v is not None and v >= 1.0) else ("down" if (v is not None and v < 0) else "")
+        strong = ' style="font-weight:800"' if c["ticker"] == MACRO_SECTOR_ETF else ""
+        cross_rows += (f'<div class="cross-row"{strong}><span>{c["ticker"]} · {c.get("label","")}</span>'
+                       f'<span class="num {vcls}">{f"{v:.2f}" if v is not None else "stale"}</span></div>')
+    sys_cls = "hot" if (sysm is not None and sysm >= 0.6) else ""
+    sys_chip = (f'<span class="sys-chip {sys_cls}" title="Systemic = 板塊中 sector_rMOM<0 的比例，'
+                f'stale 板塊排除出分母">Systemic {f"{sysm*100:.0f}%" if sysm is not None else "-"}</span>')
+
+    # §3.2 四象限判讀矩陣（靜態說明，不進自動規則）
+    soxx_weak = sr is not None and sr < 1.0
+    cur = None
+    if sr is not None and sysm is not None:
+        if sysm >= 0.6:
+            cur = ("weak", "hi") if soxx_weak else ("strong", "hi")
+        elif sysm < 0.4:
+            cur = ("weak", "lo") if soxx_weak else ("strong", "lo")
+    rows = [
+        (("weak", "lo"), "SOXX 弱（&lt;1）", "其他板塊穩（Systemic &lt; 40%）", "板塊輪動：半導體減碼、非系統性"),
+        (("weak", "hi"), "SOXX 弱", "Systemic ≥ 60%", "系統性風險：降總曝險而非換股"),
+        (("strong", "hi"), "SOXX 強", "Systemic ≥ 60%", "半導體是避風港（罕見，人工檢視）"),
+        (("strong", "lo"), "SOXX 強", "其他板塊穩", "正常多頭"),
+    ]
+    matrix = "".join(
+        f'<tr class="{"cur" if key == cur else ""}"><td>{a}</td><td>{b}</td><td>{c}</td></tr>'
+        for key, a, b, c in rows)
+
     ck_rows = ""
     for c in ckpts:
         hit = bool(c.get("triggered"))
@@ -3111,97 +3237,138 @@ def generate_macro_regime_section(payload):
     if not ck_rows:
         ck_rows = '<div class="ckpt-row"><span style="color:var(--ink-3)">未設定敘事檢查點（macro_checkpoints.json）</span></div>'
 
-    # 判讀矩陣：量化 regime × 敘事證據數 → 人工決策指引（不自動觸發任何動作）
-    cur = None
-    if ev is not None:
-        cur = (("BEAR" if bear else "NORMAL"), "hi" if ev >= 2 else "lo")
-    rows = [
-        (("NORMAL", "lo"), "NORMAL", "0-1", "正常操作"),
-        (("NORMAL", "hi"), "NORMAL", "≥ 2", "敘事領先價格，人工考慮提前降曝險"),
-        (("BEAR", "lo"), "BEAR", "0-1", "疑似部位出清而非基本面反轉，凍結加碼、不砍強勢股"),
-        (("BEAR", "hi"), "BEAR", "≥ 2", "敘事獲確認，人工執行降 beta（減總曝險 / 指數對沖）"),
-    ]
-    matrix = "".join(
-        f'<tr class="{"cur" if key == cur else ""}"><td>{rg}</td><td class="num">{evb}</td><td>{desc}</td></tr>'
-        for key, rg, evb, desc in rows)
-
-    narrative = payload.get("narrative") or "宏觀敘事"
+    uo = payload.get("universe_own") or {}
+    ur = payload.get("universe_ref") or {}
+    ref_name = ur.get("name") or "REF"
     cfg = payload.get("config", {})
+    narrative = payload.get("narrative") or "宏觀敘事"
     return f"""
     <div class="regime-banner {cls}">
       <span class="rg-state">{icon} 宏觀 Regime：{regime}</span>
-      <span class="rg-meta">自 {since} 起 · sector_rMOM {sr_txt} · Breadth {br_txt}
-        （有效 {payload.get('universe_valid','-')}/{payload.get('universe_total','-')} 檔）· 敘事證據 {ev_txt}</span>
+      <span class="rg-meta">自 {since} 起 · sector_rMOM {sr_txt} · Breadth own {own_txt} / ref {ref_txt}
+        （Δ {div_txt}）· 敘事證據 {ev_txt}</span>
       {flag_html}
-      <span class="rg-flag">{'BEAR：凍結所有買入訊號顯示，賣出邏輯不變' if bear else '加碼許可正常'}</span>
+      <span class="rg-flag">{sub}</span>
     </div>
-    <div class="card"><div class="card-title"><span>半導體 sector_rMOM（SOXX vs SPY 單因子）× 市場寬度 Breadth
+    <div class="card"><div class="card-title"><span>sector_rMOM（SOXX vs SPY）× 雙 Breadth（own {uo.get('valid','-')}/{uo.get('total','-')} · {ref_name} {ur.get('valid','-') if ur else '-'}/{ur.get('total','-') if ur else '-'}）× Divergence
       <i class="kinfo" onclick="showKInfo(event,'regime')">i</i></span></div>
-      <div id="macro_regime_chart" class="chart-box" style="height:430px;"></div></div>
-    <div class="card"><div class="card-title"><span>敘事檢查點 · {narrative} · 證據 {ev_txt}</span></div>
-      <div style="padding:6px 14px 12px">{ck_rows}
+      <div id="macro_regime_chart" class="chart-box" style="height:560px;"></div></div>
+    <div class="card"><div class="card-title"><span>跨板塊 sector_rMOM 面板（各板塊 ETF vs SPY 單因子）{sys_chip}</span></div>
+      <div class="cross-wrap">
+        <div id="macro_cross_chart" class="chart-box" style="height:300px;flex:1;min-width:0;background:transparent;border:none"></div>
+        <div class="cross-list">{cross_rows}</div>
+      </div>
+      <div style="padding:0 14px 12px">
         <table class="rg-matrix">
-          <tr><th>量化 regime</th><th>敘事證據</th><th>判讀（人工決策指引）</th></tr>
+          <tr><th>SOXX</th><th>其他板塊</th><th>判讀（靜態說明，不進自動規則）</th></tr>
           {matrix}
         </table>
+      </div></div>
+    <div class="card"><div class="card-title"><span>敘事檢查點 · {narrative} · 證據 {ev_txt}</span></div>
+      <div style="padding:6px 14px 12px">{ck_rows}
         <div style="font-size:11px;color:var(--ink-3);margin-top:8px">
-          進 BEAR：sector_rMOM &lt; {cfg.get('bear_enter_sector_rmom',1.0)} 且 Breadth &lt; {cfg.get('bear_enter_breadth',0.30):.0%}；
-          出 BEAR：sector_rMOM &gt; {cfg.get('bear_exit_sector_rmom',1.3)} 且 Breadth &gt; {cfg.get('bear_exit_breadth',0.45):.0%}；
-          均需連續 {cfg.get('confirm_days',3)} 個交易日確認（遲滯緩衝帶維持前狀態）。
-          檢查點為人工維護的可證偽清單，只做展示與計數，不觸發 regime 翻轉。</div>
+          Regime 判定只用 sector_rMOM（進 BEAR &lt; {cfg.get('bear_enter_sector_rmom',1.0)}、出 BEAR &gt; {cfg.get('bear_exit_sector_rmom',1.3)}，
+          連續 {cfg.get('confirm_days',3)} 日確認；前 {cfg.get('warmup_days',60)} 交易日 WARMUP 不判定）。
+          Breadth 不進狀態機，只看變化率：own 與 ref 20 日差分同時 ≤ −15pp 觸發 BREADTH_CRASH 警報（10 日冷卻，不改變任何 action）。
+          檢查點為人工維護的可證偽清單，只做展示與計數。</div>
       </div></div>"""
 
 def generate_macro_regime_chart_script(payload):
-    """sector_rMOM 折線 (門檻 1.0/1.3 + 緩衝帶) + 累積 Alpha + Breadth 面積圖，共用 dataZoom。"""
+    """v2 圖表：grid0 sector_rMOM(門檻+緩衝帶)+累積α、grid1 雙 Breadth(分位帶+警報線)、
+    grid2 Divergence 柱，共用 dataZoom；另有跨板塊 sector_rMOM 共圖。"""
     if not payload or not payload.get("sector_rmom_series"):
         return ""
     T = THEME
     sr = {d: v for d, v in payload.get("sector_rmom_series", [])}
     ca = {d: v for d, v in payload.get("sector_cum_alpha_series", [])}
-    br = {d: v for d, v in payload.get("breadth_series", [])}
-    dates = sorted(set(sr) | set(br))
+    own = {d: v for d, v in payload.get("breadth_own_series", [])}
+    refs = {d: v for d, v in (payload.get("breadth_ref_series") or [])}
+    dv = {d: v for d, v in (payload.get("divergence_series") or [])}
+    dates = sorted(set(sr) | set(own))
     sr_vals = [sr.get(d) for d in dates]
-    ca_vals = [round(v * 100, 2) if (v := ca.get(d)) is not None else None for d in dates]  # 累積對數超額報酬 %
-    br_vals = [br.get(d) for d in dates]
+    ca_vals = [round(v * 100, 2) if (v := ca.get(d)) is not None else None for d in dates]
+    own_vals = [own.get(d) for d in dates]
+    ref_vals = [refs.get(d) for d in dates]
+    dv_vals = [round(v * 100, 2) if (v := dv.get(d)) is not None else None for d in dates]  # pp
+    dv_color = ["rgba(34,211,154,.55)" if (v is not None and v >= 0) else "rgba(255,82,91,.55)" for v in dv_vals]
     cfg = payload.get("config", {})
     en_s, ex_s = cfg.get("bear_enter_sector_rmom", 1.0), cfg.get("bear_exit_sector_rmom", 1.3)
-    en_b, ex_b = cfg.get("bear_enter_breadth", 0.30), cfg.get("bear_exit_breadth", 0.45)
-    return f"""
+    bands = payload.get("breadth_pctile_bands") or {}
+    has_ref = payload.get("breadth_ref_series") is not None
+    acfg = payload.get("alert_config", {})
+    w = acfg.get("diff_window", 20)
+
+    # 塌陷警報：Breadth 圖垂直虛線，hover 顯示當日 own/ref 20 日差分
+    alert_ml = []
+    for a in (payload.get("alerts") or []):
+        od = a.get("own_diff")
+        rd = a.get("ref_diff")
+        tip = (f"BREADTH_CRASH {a['date']}<br>own {w}日差分 {od*100:+.1f}pp"
+               + (f"<br>ref {w}日差分 {rd*100:+.1f}pp" if rd is not None else "")
+               + "<br><span style=\\'color:#8b95a5\\'>own 塌 ref 沒塌=選股風格問題；兩者同塌=敘事層警報</span>")
+        alert_ml.append(
+            '{xAxis: ' + json.dumps(a["date"]) + ', label: {show: true, formatter: "🚨", position: "start", distance: 2, fontSize: 10},'
+            ' lineStyle: {color: "' + T["down"] + '", type: "dashed", width: 1.1},'
+            ' tooltip: {formatter: "' + tip + '"}}')
+    alert_ml_js = ",".join(alert_ml)
+
+    # p20/p60 歷史分位帶（展示參考，不進規則）
+    band_area = band_lines = ""
+    if bands.get("p20") is not None and bands.get("p60") is not None:
+        band_area = (f'markArea: {{ silent: true, data: [[{{yAxis: {bands["p20"]}, '
+                     f'itemStyle: {{color: "rgba(139,149,165,.10)"}}}}, {{yAxis: {bands["p60"]}}}]] }},')
+        band_lines = (
+            f'{{yAxis: {bands["p20"]}, lineStyle: {{color: "{T["neutral"]}", type: "dotted", width: 0.8}}, '
+            f'label: {{show: true, position: "insideEndTop", fontSize: 9, color: "{T["axis_label"]}", formatter: "p20 歷史分位"}}}},'
+            f'{{yAxis: {bands["p60"]}, lineStyle: {{color: "{T["neutral"]}", type: "dotted", width: 0.8}}, '
+            f'label: {{show: true, position: "insideEndTop", fontSize: 9, color: "{T["axis_label"]}", formatter: "p60"}}}},')
+
+    ref_series = ""
+    if has_ref:
+        ref_series = f"""
+    {{ name: 'Breadth ref', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(ref_vals)}, showSymbol: false, connectNulls: false, lineStyle: {{width: 1.2, color: '{T["ma50"]}'}} }},"""
+
+    main_js = f"""
 var mrc = echarts.init(document.getElementById('macro_regime_chart'));
 mrc.setOption({{
   title: [
-    {{ text: 'sector_rMOM (左) · 累積α% (右) — 半導體相對大盤的持續強勢結構', left: '5%', top: '1%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
-    {{ text: 'Breadth — universe 中 rMOM ≥ 1 的比例', left: '5%', top: '58%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
+    {{ text: 'sector_rMOM (左) · 累積α% (右) — regime 唯一判定變數', left: '5%', top: '1%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
+    {{ text: '雙 Breadth — own 手選清單 vs ref 對照 universe（分位帶為展示參考，不進規則）', left: '5%', top: '43%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }},
+    {{ text: 'Divergence = own − ref（正 = 選股 alpha；持續轉負 = 選股風格失效警報）', left: '5%', top: '76%', textStyle: {{fontSize: 11, color: '{T["title"]}'}} }}
   ],
-  legend: {{ data: ['sector_rMOM','累積α','Breadth'], top: '1%', right: '5%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+  legend: {{ data: ['sector_rMOM','累積α','Breadth own','Breadth ref','Divergence'], top: '1%', right: '5%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
   tooltip: {{ trigger: 'axis', confine: true, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1,
     textStyle: {{color: '{T["tooltip_text"]}', fontSize: 12, fontFamily: 'IBM Plex Mono'}},
     formatter: function(ps){{
       var h = '<div style="font-size:11px;color:{T["axis_label"]};margin-bottom:3px">' + (ps[0].axisValueLabel||ps[0].name) + '</div>';
       ps.forEach(function(p){{ var v = p.value;
         if (v == null || isNaN(v)) return;
-        if (p.seriesName === 'Breadth') h += p.marker + 'Breadth&nbsp; ' + (v*100).toFixed(1) + '%<br>';
+        if (p.seriesName.indexOf('Breadth') === 0) h += p.marker + p.seriesName + '&nbsp; ' + (v*100).toFixed(1) + '%<br>';
         else if (p.seriesName === '累積α') h += p.marker + '累積α&nbsp; ' + Number(v).toFixed(1) + '%<br>';
+        else if (p.seriesName === 'Divergence') h += p.marker + 'Divergence&nbsp; ' + Number(v).toFixed(1) + 'pp<br>';
         else h += p.marker + p.seriesName + '&nbsp; ' + Number(v).toFixed(2) + '<br>'; }});
       return h; }},
     axisPointer: {{ type: 'cross', lineStyle: {{color: '#3a4658'}}, crossStyle: {{color: '#3a4658'}} }} }},
   axisPointer: {{ link: {{xAxisIndex: 'all'}} }},
   grid: [
-    {{ left: '5%', right: '5%', top: '9%', height: '42%' }},
-    {{ left: '5%', right: '5%', top: '64%', height: '24%' }}
+    {{ left: '5%', right: '5%', top: '8%', height: '31%' }},
+    {{ left: '5%', right: '5%', top: '48%', height: '24%' }},
+    {{ left: '5%', right: '5%', top: '81%', height: '11%' }}
   ],
   xAxis: [
     {{ type: 'category', gridIndex: 0, data: {json.dumps(dates)}, boundaryGap: false, axisLabel: {{show: false}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
-    {{ type: 'category', gridIndex: 1, data: {json.dumps(dates)}, boundaryGap: false, axisLabel: {{fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}
+    {{ type: 'category', gridIndex: 1, data: {json.dumps(dates)}, boundaryGap: false, axisLabel: {{show: false}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+    {{ type: 'category', gridIndex: 2, data: {json.dumps(dates)}, boundaryGap: false, axisLabel: {{fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }}
   ],
   yAxis: [
     {{ type: 'value', gridIndex: 0, scale: true, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
     {{ type: 'value', gridIndex: 0, position: 'right', scale: true, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0)+'%';}}}}, splitLine: {{show: false}} }},
-    {{ type: 'value', gridIndex: 1, min: 0, max: 1, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return (v*100).toFixed(0)+'%';}}}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }}
+    {{ type: 'value', gridIndex: 1, min: 0, max: 1, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return (v*100).toFixed(0)+'%';}}}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+    {{ type: 'value', gridIndex: 2, splitNumber: 2, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}', formatter: function(v){{return v.toFixed(0)+'pp';}}}}, splitLine: {{show: false}} }}
   ],
   dataZoom: [
-    {{ type: 'inside', xAxisIndex: [0,1], start: 0, end: 100 }},
-    {{ show: true, type: 'slider', xAxisIndex: [0,1], bottom: 6, height: 14, start: 0, end: 100, borderColor: '{T["dz_border"]}', fillerColor: '{T["dz_filler"]}', handleStyle: {{color: '{T["dz_handle"]}'}}, textStyle: {{color: '{T["dz_text"]}'}}, dataBackground: {{lineStyle: {{color: '{T["dz_bg_line"]}'}}, areaStyle: {{color: '{T["dz_bg_area"]}'}}}} }}
+    {{ type: 'inside', xAxisIndex: [0,1,2], start: 0, end: 100 }},
+    {{ show: true, type: 'slider', xAxisIndex: [0,1,2], bottom: 6, height: 14, start: 0, end: 100, borderColor: '{T["dz_border"]}', fillerColor: '{T["dz_filler"]}', handleStyle: {{color: '{T["dz_handle"]}'}}, textStyle: {{color: '{T["dz_text"]}'}}, dataBackground: {{lineStyle: {{color: '{T["dz_bg_line"]}'}}, areaStyle: {{color: '{T["dz_bg_area"]}'}}}} }}
   ],
   series: [
     {{ name: 'sector_rMOM', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: {json.dumps(sr_vals)}, showSymbol: false, connectNulls: false, lineStyle: {{width: 1.6, color: '{T["ma20"]}'}},
@@ -3209,15 +3376,59 @@ mrc.setOption({{
          {{yAxis: {en_s}, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.9}}}},
          {{yAxis: {ex_s}, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.9}}}} ] }},
        markArea: {{ silent: true, data: [[{{yAxis: {en_s}, itemStyle: {{color: 'rgba(139,149,165,.08)'}}}}, {{yAxis: {ex_s}}}]] }} }},
-    {{ name: '累積α', type: 'line', xAxisIndex: 0, yAxisIndex: 1, data: {json.dumps(ca_vals)}, showSymbol: false, connectNulls: false, lineStyle: {{width: 1, color: '{T["ma50"]}'}}, opacity: .8 }},
-    {{ name: 'Breadth', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(br_vals)}, showSymbol: false, connectNulls: false, areaStyle: {{color: 'rgba(77,127,255,.20)'}}, lineStyle: {{width: 1.2, color: '{T["ma50"]}'}},
-       markLine: {{ silent: true, symbol: 'none', label: {{show: true, position: 'insideEndTop', fontSize: 9, color: '{T["axis_label"]}', formatter: function(p){{return (p.value*100).toFixed(0)+'%';}}}}, data: [
-         {{yAxis: {en_b}, lineStyle: {{color: '{T["down"]}', type: 'dashed', width: 0.9}}}},
-         {{yAxis: {ex_b}, lineStyle: {{color: '{T["up"]}', type: 'dashed', width: 0.9}}}} ] }} }}
+    {{ name: '累積α', type: 'line', xAxisIndex: 0, yAxisIndex: 1, data: {json.dumps(ca_vals)}, showSymbol: false, connectNulls: false, lineStyle: {{width: 1, color: '{T["ma200"]}'}} }},
+    {{ name: 'Breadth own', type: 'line', xAxisIndex: 1, yAxisIndex: 2, data: {json.dumps(own_vals)}, showSymbol: false, connectNulls: false,
+       areaStyle: {{color: 'rgba(224,168,60,.14)'}}, lineStyle: {{width: 1.4, color: '{T["ma20"]}'}},
+       {band_area}
+       markLine: {{ silent: false, symbol: 'none', data: [ {band_lines} {alert_ml_js} ] }} }},{ref_series}
+    {{ name: 'Divergence', type: 'bar', xAxisIndex: 2, yAxisIndex: 3, data: {json.dumps(dv_vals)},
+       itemStyle: {{color: function(p){{return {json.dumps(dv_color)}[p.dataIndex];}}}},
+       markLine: {{ silent: true, symbol: 'none', data: [{{yAxis: 0, lineStyle: {{color: '{T["neutral"]}', type: 'dashed', width: 0.8}}}}], label: {{show: false}} }} }}
   ]
 }});
 window.addEventListener('resize', function(){{ mrc.resize(); }});
 """
+
+    # 跨板塊 sector_rMOM 共圖 (SOXX 加粗)
+    cross = payload.get("cross_sector") or []
+    if not cross:
+        return main_js
+    cs_colors = {"SOXX": T["ma20"], "XLF": T["ma50"], "XLI": T["up"], "XLV": T["ma200"], "XLE": "#ff8a3c"}
+    cs_dates = sorted({d for c in cross for d, _ in (c.get("series") or [])})
+    cs_series = []
+    legend = []
+    for c in cross:
+        m = {d: v for d, v in (c.get("series") or [])}
+        vals = [m.get(d) for d in cs_dates]
+        nm = f"{c['ticker']}"
+        legend.append(nm)
+        width = 2.2 if c["ticker"] == MACRO_SECTOR_ETF else 1.1
+        color = cs_colors.get(c["ticker"], T["neutral"])
+        cs_series.append(
+            f"{{ name: {json.dumps(nm)}, type: 'line', data: {json.dumps(vals)}, showSymbol: false, connectNulls: false,"
+            f" lineStyle: {{width: {width}, color: '{color}'}}, itemStyle: {{color: '{color}'}} }}")
+    cross_js = f"""
+var mcx = echarts.init(document.getElementById('macro_cross_chart'));
+mcx.setOption({{
+  legend: {{ data: {json.dumps(legend, ensure_ascii=False)}, top: '2%', right: '4%', textStyle: {{fontSize: 10, color: '{T["legend"]}'}}, itemWidth: 12, itemHeight: 8 }},
+  tooltip: {{ trigger: 'axis', confine: true, backgroundColor: '{T["tooltip_bg"]}', borderColor: '{T["tooltip_border"]}', borderWidth: 1,
+    textStyle: {{color: '{T["tooltip_text"]}', fontSize: 12, fontFamily: 'IBM Plex Mono'}},
+    valueFormatter: function(v){{return (v==null||isNaN(v))?'-':Number(v).toFixed(2);}} }},
+  grid: {{ left: '8%', right: '4%', top: '16%', bottom: '14%' }},
+  xAxis: {{ type: 'category', data: {json.dumps(cs_dates)}, boundaryGap: false, axisLabel: {{fontSize: 10, color: '{T["axis_label"]}'}}, axisLine: {{lineStyle: {{color: '{T["axis_line"]}'}}}} }},
+  yAxis: {{ type: 'value', scale: true, splitNumber: 4, axisLabel: {{fontSize: 9, color: '{T["axis_label"]}'}}, splitLine: {{lineStyle: {{color: '{T["split_line"]}'}}}} }},
+  dataZoom: [{{ type: 'inside', start: 0, end: 100 }}],
+  series: [
+    {{ name: '_zero', type: 'line', data: [], showSymbol: false, silent: true,
+       markLine: {{ silent: true, symbol: 'none', data: [
+         {{yAxis: 0, lineStyle: {{color: '{T["down"]}', type: 'dotted', width: 0.9}}, label: {{show: true, position: 'insideEndTop', fontSize: 9, color: '{T["axis_label"]}', formatter: '0 (Systemic 門檻)'}}}},
+         {{yAxis: 1, lineStyle: {{color: '{T["neutral"]}', type: 'dotted', width: 0.8}}, label: {{show: false}}}} ] }} }},
+    {",".join(cs_series)}
+  ]
+}});
+window.addEventListener('resize', function(){{ mcx.resize(); }});
+"""
+    return main_js + cross_js
 
 def generate_html(stocks_data, options_data, fund_data, md, regime_payload=None):
     update_time = now_et().strftime("%Y-%m-%d %H:%M")
@@ -3516,9 +3727,9 @@ var KINFO = {{
   macd: {{ t: 'MACD 指數平滑異同移動平均', d: '衡量中期多空動能與趨勢轉折的動能指標。',
         c: 'DIF=EMA12−EMA26，Signal＝DIF 的 EMA9，柱狀 Hist=DIF−Signal（參數 12,26,9）。',
         s: 'DIF 上穿 Signal（柱翻正）為買、下穿為賣；柱在 0 軸上方且擴張動能強；高檔價漲而 MACD 不創高（背離）留意轉弱。' }},
-  regime: {{ t: '宏觀 Regime（sector_rMOM × Breadth）', d: '在個股殘差動能之上的「該持有多少」宏觀判斷層。sector_rMOM 把 SOXX 當一檔股票對 SPY 做滾動單因子回歸取殘差，衡量半導體相對大盤的持續強勢結構是否仍在（宏觀空頭敘事的唯一量化檢驗入口）；Breadth＝觀察清單中 rMOM≥1 的比例，衡量強勢結構的廣度。只用慢變數，單日價格波動不會翻轉 regime。',
-        c: 'sector_rMOM＝Σε(t−252~t−21)÷[std(ε)×√N]，迴歸係數 shift(1) 防前視；Breadth(t)＝count(rMOM≥1)÷count(當日 rMOM 可計算的 ticker)，歷史不足的新股不進分母。狀態機（遲滯＋3 日確認）：NORMAL→BEAR 需 sector_rMOM<1.0 且 Breadth<30% 連續 3 日；BEAR→NORMAL 需 sector_rMOM>1.3 且 Breadth>45% 連續 3 日；緩衝帶維持前狀態。',
-        s: 'regime 只影響「加碼許可」，永不產生賣出訊號：BEAR 下所有買入訊號（加碼黃金點）改顯 🔒 凍結加碼，個股減碼/退出邏輯不變。搭配敘事檢查點判讀：NORMAL+證據≥2 → 敘事領先價格，考慮提前降曝險；BEAR+證據0-1 → 疑似部位出清，凍結加碼但不砍強勢股；BEAR+證據≥2 → 敘事獲確認，人工降 beta。' }}
+  regime: {{ t: '宏觀 Regime v2（sector_rMOM 單獨判定 + 雙 Breadth + 跨板塊）', d: '在個股殘差動能之上的「該持有多少」宏觀判斷層。regime 判定只用 sector_rMOM（SOXX 對 SPY 滾動單因子回歸的 12-1 月殘差動能）；Breadth 全面退出狀態機，降級為展示層指標：own＝手選清單中 rMOM≥1 的比例、ref＝規則型對照 universe（SOXX 前 30 大成分）同口徑計算，Divergence＝own−ref（正＝選股 alpha、持續轉負＝選股風格失效，與宏觀敘事無關）。只用慢變數，單日價格波動不會翻轉 regime。',
+        c: '三態狀態機：序列前 60 交易日 WARMUP（不判定、不 gating），結束當日以 sector_rMOM 判定初始狀態；NORMAL→BEAR 需 <1.0 連續 3 日、BEAR→NORMAL 需 >1.3 連續 3 日（遲滯緩衝帶維持前狀態，缺漏日不計入且計數不歸零）。Breadth 只看變化率不看水位：own 與 ref 的 20 日差分同時 ≤−15pp 觸發 BREADTH_CRASH 警報（10 日冷卻、單向發報、不改變 regime 與 action）；圖上虛線為 own 全歷史 p20/p60 分位（每日更新，不進規則）。跨板塊面板＝各板塊 ETF 對 SPY 單因子 rMOM；Systemic＝rMOM<0 的板塊比例（stale 板塊排除出分母）。',
+        s: 'regime 只影響「加碼許可」，永不產生賣出訊號：BEAR 下所有買入訊號（加碼黃金點）改顯 🔒 凍結加碼，減碼/退出邏輯不變；WARMUP 視同 NORMAL。跨板塊判讀：SOXX 弱＋Systemic<40% → 板塊輪動（半導體減碼、非系統性）；SOXX 弱＋Systemic≥60% → 系統性風險（降總曝險而非換股）；SOXX 強＋Systemic≥60% → 半導體是避風港（罕見，人工檢視）；SOXX 強＋其他板塊穩 → 正常多頭。警報判讀：own 塌 ref 沒塌＝選股風格問題；兩者同塌＝敘事層警報。' }}
 }};
 function showKInfo(ev, key){{
     ev.stopPropagation();
@@ -3595,7 +3806,7 @@ def main():
     print("\n[2/5] 計算殘差動能 (滾動雙因子回歸 vs SPY/類股 ETF)...")
     needed_etfs = {sector_etf_for(fund_data.get(tk, {})) for tk in stocks_data}
     needed_etfs.discard(None)
-    needed_etfs.add(MACRO_SECTOR_ETF)  # 宏觀 regime 層 sector 迴歸用
+    needed_etfs.update(macro_regime.CROSS_SECTOR_CONFIG["sectors"])  # 宏觀 regime 跨板塊迴歸用 (含 SOXX)
     factors = fetch_factor_closes(needed_etfs)
     mkt_close = factors.get(RM_MARKET_ETF)
     for tk, record in stocks_data.items():

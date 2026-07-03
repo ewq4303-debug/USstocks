@@ -1,0 +1,10 @@
+{
+  "name": "SOXX_TOP30",
+  "as_of": "2026-07-03",
+  "refresh_note": "每季核對一次 SOXX 官網成分權重前 30 名（不用 yfinance 動態抓，一律人工維護此檔）",
+  "tickers": [
+    "NVDA", "AVGO", "AMD", "TXN", "QCOM", "KLAC", "LRCX", "AMAT", "MU", "INTC",
+    "ADI", "MRVL", "NXPI", "MCHP", "ON", "MPWR", "TER", "SWKS", "QRVO", "ENTG",
+    "GFS", "COHR", "ONTO", "LSCC", "RMBS", "ALGM", "SLAB", "PI", "FORM", "OLED"
+  ]
+}
