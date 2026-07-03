@@ -27,29 +27,38 @@
     標題在 `[訊號]` 後以富文本 `{a|→ 建議}`（`RM_ACTION_ZH`/`RM_ACTION_COLOR`）顯示客觀建議
     （加碼黃金點/部分調節/順勢續抱/減碼退出/觀望/不採信回歸），完整規則見 `i` 說明（`KINFO.resid`）；
     系統不做手動標記/動作推導。
-- 宏觀 Regime 層（SPEC_macro_regime，`macro_regime.py` 純計算模組 + `us_stock_dark.py` 膠水）：
-  - 掛在殘差 pipeline 之後（main 步驟 2.5）：個股 rMOM → Breadth → sector 迴歸 →
-    regime 狀態機 → 讀 `macro_checkpoints.json` → action gating → `docs/data/macro_regime.json`
-  - **sector_rMOM**：把 SOXX 當一檔股票對 SPY 做**單因子**滾動回歸（重用
-    `compute_residual_momentum(soxx, spy, None)`，shift(1) 防前視、視窗比照個股層），
-    取 rMOM 序列 + 累積 α 線；回答「半導體相對大盤的持續強勢結構是否仍在」
-  - **Breadth** = count(觀察清單 rMOM≥1) ÷ count(當日 rMOM 非 NaN)，歷史不足新股不進分母；
-    有效 <10 檔 → `low_sample`，狀態機暫停翻轉
-  - **狀態機**（`REGIME_CONFIG`）：NORMAL→BEAR 需 sector_rMOM<1.0 且 Breadth<0.30 連續 3 日；
-    BEAR→NORMAL 需 >1.3 且 >0.45 連續 3 日（遲滯，緩衝帶維持前狀態）；缺漏日不計入連續天數
-    且計數不歸零；sector 連續 stale>5 日凍結 + warning（warmup 前導 NaN 不算 stale）；
-    只用慢變數，禁止 VIX/單日跌幅等快變數觸發翻轉
-  - **action gating**：個股規則零改動；BEAR 下唯一行為改變 = 買入訊號（pullback）改寫為
-    `frozen`（🔒 凍結加碼，灰藍 chip + 標題鎖形），賣出/其餘不變、永不新增自動賣出。
-    優先序：`narrative.json`（選用，`{TICKER:{"mode":"exit"}}` 禁止買入訊號）> regime FROZEN > 技術訊號
+- 宏觀 Regime 層 v2（SPEC_macro_regime_v2，`macro_regime.py` 純計算模組 + `us_stock_dark.py` 膠水）：
+  - 掛在殘差 pipeline 之後（main 步驟 2.5）：個股殘差（手選 ∪ ref_universe 共用快取）→
+    Breadth_own/ref/Divergence → SOXX+跨板塊 sector 迴歸 → regime 狀態機 v2（含 WARMUP）→
+    塌陷警報 → 讀 `macro_checkpoints.json` → action gating → `docs/data/macro_regime.json`（schema v2）
+  - **regime 判定只用 sector_rMOM**（SOXX 對 SPY 單因子滾動回歸，重用
+    `compute_residual_momentum(soxx, spy, None)`，shift(1) 防前視）；**Breadth 全面退出狀態機**
+  - **狀態機 v2**（`REGIME_CONFIG_V2`）三態 WARMUP/NORMAL/BEAR：回填起點後前 60 交易日
+    WARMUP（不判定、不 gating），結束當日以當日值定初始狀態（<1.0→BEAR 否則 NORMAL）；
+    NORMAL→BEAR <1.0 連續 3 日、BEAR→NORMAL >1.3 連續 3 日（遲滯緩衝帶維持前狀態）；
+    缺漏日不計入連續天數且計數不歸零；連續 stale>5 日 warning（warmup 前導 NaN 不算 stale）
+  - **雙 Breadth**：own=手選清單、ref=`ref_universe.json`（人工維護，如 SOXX 前 30 大；
+    **不用 yfinance 動態抓成分股**；缺檔或 <15 檔 → 對照層輸出 null 不中斷）；重疊 ticker
+    共用殘差快取不重跑（`compute_ref_rmom`）；Divergence=own−ref（正=選股 alpha、
+    持續轉負=選股風格失效，與宏觀敘事無關）
+  - **塌陷警報**（`BREADTH_ALERT_CONFIG`，取代 0.30/0.45 絕對門檻）：own 與 ref 的 20 日差分
+    同時 ≤−15pp 觸發 `BREADTH_CRASH`（10 交易日冷卻、單向發報），純警示不改 regime/action；
+    展示層改畫 own 全歷史 p20/p60 分位帶（不進規則）
+  - **跨板塊面板**（`CROSS_SECTOR_CONFIG`：SOXX/XLF/XLI/XLV/XLE 各對 SPY 單因子）：
+    Systemic = count(sector_rMOM<0)÷板塊數（stale 板塊排除出分母，各板塊互不影響）
+  - **action gating**：沿用 v1（個股規則零改動；BEAR 下 pullback→`frozen` 🔒，賣出永不被擋；
+    優先序 `narrative.json` exit > regime FROZEN > 技術訊號）；**WARMUP 視同 NORMAL**
   - **敘事檢查點** `macro_checkpoints.json`（人工維護、可證偽清單）：只計 `evidence_count`
     並原樣傳遞，不參與狀態機；缺檔/格式錯誤 → evidence_count=null、pipeline 不中斷；
     triggered 非 bool 或 date 非 ISO → 跳過該筆記 warning
-  - 前端（大盤總覽頂部）：Regime 橫幅（BEAR=暗紅底）、sector_rMOM 折線（1.0/1.3 門檻線+緩衝帶）
-    + 累積α + Breadth 面積圖（0.30/0.45 參考線）共用 dataZoom、檢查點卡片、判讀矩陣
-    （regime × evidence 的人工決策指引，當前組合高亮）；說明見 `KINFO.regime`
-  - pytest 驗收：`python -m pytest tests/test_macro_regime.py`（無網路，涵蓋規格 §10：
-    遲滯/AND/confirm 歸零/gating/優先序/防前視/邊界/Breadth 分母）
+  - 前端（大盤總覽頂部）：Regime 橫幅（BEAR=暗紅、WARMUP=灰「資料累積中，gating 未啟動」、
+    警報 chip）、三格共用 dataZoom 圖（sector_rMOM 1.0/1.3 門檻+緩衝帶 / 雙 Breadth+分位帶
+    +🚨 警報垂直線（hover 顯示 own/ref 差分）/ Divergence 柱）、跨板塊共圖（SOXX 加粗+
+    右側排序列表+Systemic chip ≥60% 轉紅）、§3.2 四象限判讀矩陣（當前組合高亮）；
+    說明見 `KINFO.regime`
+  - pytest 驗收：`python -m pytest tests/test_macro_regime.py`（無網路，涵蓋 v2 §8：
+    WARMUP/Breadth 退出狀態機/遲滯/警報 AND+冷卻/Divergence/共用快取/ref 降級/
+    跨板塊獨立性/schema v2）
 - 持股明細：讀 `ibkr_data.json` 顯示 IBKR 帳戶總覽與持股表
   - 帳戶淨值折線（`compute_portfolio_history()` 讀 `nav_history.json` 真實每日 NAV，
     從有記錄第一天起取**累積對數報酬** 100·ln(Vt/V0)（`_cum_ln`，起點 0）；IBKR 無歷史
