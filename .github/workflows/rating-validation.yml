@@ -1,0 +1,57 @@
+name: Rating v2 Replay Validation
+
+# SPEC_rating_v2 §8：v2 驗收回測（手動觸發）。
+# 通過標準：forward 20d median 單調、sb−ss ≥ 2pp、月均翻轉 ≤ 4。
+# 結果 (docs/rating_validation.html + docs/data/rating_validation.json)
+# commit 回觸發的分支；驗證結論不影響 job 成敗（結論由人工/後續步驟判讀）。
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yfinance pandas numpy requests pytest
+
+      - name: Unit Tests (rating v2)
+        run: python -m pytest tests/test_rating_v2.py -q
+
+      - name: Replay Back-Validation
+        run: |
+          set +e
+          python scripts/validate_rating_v2.py 2>&1 | tee /tmp/rating_validation.log
+          code=${PIPESTATUS[0]}
+          echo "validation_exit_code=$code" >> "$GITHUB_OUTPUT"
+          # exit 2 = 驗收未通過（仍屬有效結果，報告照樣 commit）；exit 1 = 執行錯誤
+          if [ "$code" -eq 1 ]; then exit 1; fi
+          exit 0
+
+      - name: Commit Report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/rating_validation.html docs/data/rating_validation.json
+          if ! git diff --staged --quiet; then
+            git commit -m "Rating v2 replay validation report"
+            git push
+          else
+            echo "No changes to commit"
+          fi

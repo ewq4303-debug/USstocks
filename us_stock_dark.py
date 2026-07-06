@@ -102,6 +102,39 @@ RM_ACTION_COLOR = {
     "frozen": "#6b7fa3",
 }
 
+# ===== 綜合評等 v2 (SPEC_rating_v2)：五桶對稱計分 + 缺值重正規化 =====
+# 所有門檻集中於此，可用環境變數 RATING_V2_<KEY大寫> 覆寫（數值型）。
+RATING_V2_CONFIG = {
+    # 各桶封頂 (bucket_score 夾在 [−cap, +cap])
+    "cap_trend": 6.0, "cap_momentum": 5.0, "cap_positioning": 4.0,
+    "cap_sentiment": 3.0, "cap_valuation": 2.0,
+    # TR3 52 週區間位置門檻
+    "tr3_hi_pos": 0.85, "tr3_lo_pos": 0.15,
+    # MO2 RSI 分帶：45–70 +2；40–45/70–78 +1；30–40 −1；<30 或 >80 −2；78–80 0
+    "rsi_healthy_lo": 45.0, "rsi_healthy_hi": 70.0,
+    "rsi_mild_lo": 40.0, "rsi_mild_hi": 78.0,
+    "rsi_weak_lo": 30.0, "rsi_extreme_hi": 80.0,
+    # PO1 法人持股
+    "inst_hi": 0.60, "inst_mid": 0.40, "inst_low": 0.20,
+    # PO2 空單月變化死區 (±10%/15%，避免雙週結算噪音來回翻分)
+    "short_down_ratio": 0.90, "short_up_ratio": 1.15,
+    # SE1 Put/Call OI（絕對門檻；個股歷史分布標準化為 v2.1，留此接口）
+    "pcr_bull_strong": 0.70, "pcr_bull": 1.00, "pcr_neutral_hi": 1.30,
+    # VA1 目標價 30 日修訂幅度門檻
+    "tp_rev_pct": 0.02, "tp_lookback_days": 30,
+    # 可得正分上限低於此 → 評等「資料不足」(na)，不映射
+    "min_available": 10.0,
+    # score_norm 五級映射門檻（對稱）
+    "map_sb": 12.0, "map_b": 5.0, "map_s": -5.0, "map_ss": -12.0,
+}
+for _k in list(RATING_V2_CONFIG):
+    _env = os.getenv(f"RATING_V2_{_k.upper()}")
+    if _env is not None:
+        try:
+            RATING_V2_CONFIG[_k] = float(_env)
+        except ValueError:
+            print(f"  ⚠️ RATING_V2_{_k.upper()}={_env!r} 非數值，忽略")
+
 # =========================================================
 # IBKR 持股 / 交易快照
 # 由 IBKR API (MCP) 取得後存於 ibkr_data.json，於建置時讀取。
@@ -592,24 +625,46 @@ def apply_regime_gating(stocks_data, regime_payload, narrative=None):
 # =========================================================
 # 個股資料 (yfinance)
 # =========================================================
+def compute_indicator_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """在 OHLCV DataFrame 上就地加所有指標欄位（replay 腳本亦 import 此函式，勿複製邏輯）。
+    High_252/Low_252 用真實 High/Low 欄位（SPEC_rating_v2 Phase 1，修正 v1 用收盤序列的問題）。"""
+    df['SMA_20']  = calculate_sma(df['Close'], 20)
+    df['SMA_60']  = calculate_sma(df['Close'], 60)
+    df['SMA_200'] = calculate_sma(df['Close'], 200)
+    df['RSI_14']  = calculate_rsi(df['Close'], 14)
+    df['MACD'], df['MACD_Signal'] = calculate_macd(df['Close'])
+    df['MACD_Hist'] = df['MACD'] - df['MACD_Signal']
+    df['K'], df['D'] = calculate_stochastic(df['High'], df['Low'], df['Close'])
+    df['ST'], df['ST_DIR'] = calculate_supertrend(df, 10, 3)
+    df['Vol_MA20'] = df['Volume'].rolling(20).mean()
+    df['High_252'] = df['High'].rolling(min(252, len(df))).max()
+    df['Low_252']  = df['Low'].rolling(min(252, len(df))).min()
+    return df
+
+def indicators_from_row(latest, prev, _f=None):
+    """由指標欄位列 (latest/prev) 組出 indicators dict（get_stock_data 與 replay 共用）。
+    注意：rsi 缺值仍給 50 供 v1 沿用；v2 以 rsi_raw（缺值 None）判 N/A，廢除預設 50。"""
+    if _f is None:
+        def _f(v, d=0.0):
+            return float(v) if pd.notna(v) else d
+    return {
+        "ma20": _f(latest.get("SMA_20")), "ma60": _f(latest.get("SMA_60")), "ma200": _f(latest.get("SMA_200")),
+        "rsi": _f(latest.get("RSI_14"), 50), "macd": _f(latest.get("MACD")), "macd_signal": _f(latest.get("MACD_Signal")),
+        "macd_hist": _f(latest.get("MACD_Hist")), "macd_hist_prev": _f(prev.get("MACD_Hist")),
+        "supertrend": _f(latest.get("ST")), "supertrend_dir": int(latest.get("ST_DIR")) if pd.notna(latest.get("ST_DIR")) else 0,
+        "vol_ma20": _f(latest.get("Vol_MA20")), "high_252": _f(latest.get("High_252")), "low_252": _f(latest.get("Low_252")),
+        # v2 專用：缺值保留 None（N/A），不得像 v1 一樣以預設值頂替
+        "rsi_raw": float(latest.get("RSI_14")) if pd.notna(latest.get("RSI_14")) else None,
+        "macd_hist_raw": float(latest.get("MACD_Hist")) if pd.notna(latest.get("MACD_Hist")) else None,
+    }
+
 def get_stock_data(ticker: str, period: str = RM_FETCH_PERIOD):  # 3y: 覆蓋殘差動能 252 日回歸視窗
     try:
         t = yf.Ticker(ticker)
         df = t.history(period=period)
         if df is None or df.empty:
             return None
-        df = df[df["Close"] > 0].copy()
-        df['SMA_20']  = calculate_sma(df['Close'], 20)
-        df['SMA_60']  = calculate_sma(df['Close'], 60)
-        df['SMA_200'] = calculate_sma(df['Close'], 200)
-        df['RSI_14']  = calculate_rsi(df['Close'], 14)
-        df['MACD'], df['MACD_Signal'] = calculate_macd(df['Close'])
-        df['MACD_Hist'] = df['MACD'] - df['MACD_Signal']
-        df['K'], df['D'] = calculate_stochastic(df['High'], df['Low'], df['Close'])
-        df['ST'], df['ST_DIR'] = calculate_supertrend(df, 10, 3)
-        df['Vol_MA20'] = df['Volume'].rolling(20).mean()
-        df['High_252'] = df['Close'].rolling(min(252, len(df))).max()
-        df['Low_252']  = df['Close'].rolling(min(252, len(df))).min()
+        df = compute_indicator_frame(df[df["Close"] > 0].copy())
 
         df90 = df.tail(120)
         latest = df.iloc[-1]
@@ -628,15 +683,10 @@ def get_stock_data(ticker: str, period: str = RM_FETCH_PERIOD):  # 3y: 覆蓋殘
             "df": df90,
             "close_full": df["Close"].copy(),  # 完整還原收盤序列 (殘差動能回歸用)
             "latest": {"close": _f(latest["Close"]), "volume": int(latest["Volume"]) if pd.notna(latest["Volume"]) else 0,
-                       "high": _f(latest["High"]), "low": _f(latest["Low"]), "open": _f(latest["Open"])},
+                       "high": _f(latest["High"]), "low": _f(latest["Low"]), "open": _f(latest["Open"]),
+                       "prev_close": _f(prev["Close"])},
             "prev": {"close": _f(prev["Close"])},
-            "indicators": {
-                "ma20": _f(latest.get("SMA_20")), "ma60": _f(latest.get("SMA_60")), "ma200": _f(latest.get("SMA_200")),
-                "rsi": _f(latest.get("RSI_14"), 50), "macd": _f(latest.get("MACD")), "macd_signal": _f(latest.get("MACD_Signal")),
-                "macd_hist": _f(latest.get("MACD_Hist")), "macd_hist_prev": _f(prev.get("MACD_Hist")),
-                "supertrend": _f(latest.get("ST")), "supertrend_dir": int(latest.get("ST_DIR")) if pd.notna(latest.get("ST_DIR")) else 0,
-                "vol_ma20": _f(latest.get("Vol_MA20")), "high_252": _f(latest.get("High_252")), "low_252": _f(latest.get("Low_252")),
-            },
+            "indicators": indicators_from_row(latest, prev, _f),
             "info": info,
         }
     except Exception as e:
@@ -1160,6 +1210,286 @@ def calculate_rating(data, fund, opt):
         {"group": "籌碼", "label": "預估 PE 改善", "points": 1.5 if fp and fund.get("trailing_pe") and 0 < fp < fund.get("trailing_pe") else 0},
     ]
     return {"tech": round(tech, 1), "chip": round(chip, 1), "total": round(total, 1), "rating": rating, "rating_key": rk, "details": details}
+
+# =========================================================
+# 綜合評等 v2 (SPEC_rating_v2)
+# 五桶對稱計分 (±) + 桶封頂 + 缺值 (N/A) 重正規化。
+# 純函式：無副作用 / 無 I/O / 無網路，replay 腳本直接 import 重放。
+# v1 (calculate_rating) 並行保留，兩套同時輸出。
+# =========================================================
+RATING_V2_LABELS = {
+    "TR1": "站上季線", "TR2": "均線排列", "TR3": "52週區間位置",
+    "MO1": "MACD 動能", "MO2": "RSI", "MO3": "量能方向",
+    "PO1": "法人持股", "PO2": "空單月變化",
+    "SE1": "Put/Call OI", "VA1": "目標價 30 日修訂",
+}
+RATING_V2_RATING_ZH = {"sb": "強力買進", "b": "買進", "n": "中性", "s": "減碼", "ss": "賣出", "na": "資料不足"}
+
+def _v2_num(v):
+    """None/NaN → None，其餘轉 float（fund/opt 欄位常見 NaN 浮點）。"""
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return None if math.isnan(f) else f
+
+def calculate_rating_v2(data: dict, fund: dict, opt: dict | None,
+                        target_price_30d_ago: float | None = None,
+                        config: dict | None = None) -> dict:
+    """綜合評等 v2：每項三態 +/0/− 或 N/A；N/A 從分母移除（重正規化）。
+
+    回傳 {version, score_norm, earned, available_max, completeness,
+          buckets: {桶: {score, cap, items}}, rating, rating_key, details, info}。
+    score_norm = earned / available_max × 20；available_max < min_available →
+    rating_key "na"（資料不足），不參與五級映射。
+    """
+    cfg = dict(RATING_V2_CONFIG)
+    cfg.update(config or {})
+    ind, latest = data["indicators"], data["latest"]
+    close = _v2_num(latest.get("close"))
+    prev_close = _v2_num(latest.get("prev_close"))
+    if prev_close is None:
+        prev_close = _v2_num((data.get("prev") or {}).get("close"))
+    fund = fund or {}
+
+    def pos_or_none(v):
+        v = _v2_num(v)
+        return v if (v is not None and v > 0) else None
+
+    items = []  # (id, bucket, points|None, max_pos)
+
+    # ---- TREND ----
+    ma60, ma200 = pos_or_none(ind.get("ma60")), pos_or_none(ind.get("ma200"))
+    if close is None or close <= 0 or ma60 is None:
+        tr1 = None
+    else:
+        tr1 = 2.0 if close > ma60 else (-2.0 if close < ma60 else 0.0)
+    items.append(("TR1", "TREND", tr1, 2.0))
+
+    if ma60 is None or ma200 is None:
+        tr2 = None
+    else:
+        tr2 = 2.0 if ma60 > ma200 else (-2.0 if ma60 < ma200 else 0.0)
+    items.append(("TR2", "TREND", tr2, 2.0))
+
+    hi252, lo252 = pos_or_none(ind.get("high_252")), pos_or_none(ind.get("low_252"))
+    if close is None or close <= 0 or hi252 is None or lo252 is None or hi252 <= lo252:
+        tr3 = None
+    else:
+        pos = (close - lo252) / (hi252 - lo252)
+        tr3 = 2.0 if pos >= cfg["tr3_hi_pos"] else (-2.0 if pos <= cfg["tr3_lo_pos"] else 0.0)
+    items.append(("TR3", "TREND", tr3, 2.0))
+
+    # ---- MOMENTUM ----
+    mh = _v2_num(ind.get("macd_hist_raw", ind.get("macd_hist")))  # raw 缺值 None，不得預設 0 判空頭
+    mo1 = None if mh is None else (2.0 if mh > 0 else (-2.0 if mh < 0 else 0.0))
+    items.append(("MO1", "MOMENTUM", mo1, 2.0))
+
+    rsi = _v2_num(ind.get("rsi_raw"))  # 廢除 v1 預設 50：缺值 → N/A
+    if rsi is None:
+        mo2 = None
+    elif cfg["rsi_healthy_lo"] <= rsi <= cfg["rsi_healthy_hi"]:
+        mo2 = 2.0
+    elif cfg["rsi_mild_lo"] <= rsi < cfg["rsi_healthy_lo"] or cfg["rsi_healthy_hi"] < rsi <= cfg["rsi_mild_hi"]:
+        mo2 = 1.0
+    elif cfg["rsi_weak_lo"] <= rsi < cfg["rsi_mild_lo"]:
+        mo2 = -1.0
+    elif rsi < cfg["rsi_weak_lo"] or rsi > cfg["rsi_extreme_hi"]:
+        mo2 = -2.0
+    else:  # 78–80 緩衝帶
+        mo2 = 0.0
+    items.append(("MO2", "MOMENTUM", mo2, 2.0))
+
+    vol, vma = _v2_num(latest.get("volume")), pos_or_none(ind.get("vol_ma20"))
+    if vma is None or vol is None:
+        mo3 = None
+    elif vol <= vma:  # 量縮 → 0
+        mo3 = 0.0
+    elif close is None or prev_close is None or prev_close <= 0:
+        mo3 = None  # 量增但無法判定收漲/收跌方向
+    else:
+        mo3 = 1.0 if close > prev_close else (-1.0 if close < prev_close else 0.0)
+    items.append(("MO3", "MOMENTUM", mo3, 1.0))
+
+    # ---- POSITIONING ----
+    inst = _v2_num(fund.get("inst_pct"))
+    if inst is None:
+        po1 = None
+    elif inst >= cfg["inst_hi"]:
+        po1 = 2.0
+    elif inst >= cfg["inst_mid"]:
+        po1 = 1.0
+    elif inst < cfg["inst_low"]:
+        po1 = -1.0
+    else:
+        po1 = 0.0
+    items.append(("PO1", "POSITIONING", po1, 2.0))
+
+    ss, ssp = _v2_num(fund.get("shares_short")), _v2_num(fund.get("shares_short_prior"))
+    if ss is None or ssp is None or ssp <= 0:
+        po2 = None
+    else:
+        _ratio = ss / ssp  # epsilon 防浮點誤差把邊界值踢出死區
+        if _ratio < cfg["short_down_ratio"] - 1e-9:
+            po2 = 2.0
+        elif _ratio > cfg["short_up_ratio"] + 1e-9:
+            po2 = -2.0
+        else:  # 死區
+            po2 = 0.0
+    items.append(("PO2", "POSITIONING", po2, 2.0))
+
+    # ---- SENTIMENT ----
+    pcr = _v2_num(opt.get("pcr_oi")) if opt else None  # 廢除 v1 預設 1
+    if pcr is None or pcr <= 0:  # pcr_oi=0 為 call_oi 除零守門值，視同缺值
+        se1 = None
+    elif pcr < cfg["pcr_bull_strong"]:
+        se1 = 2.0
+    elif pcr < cfg["pcr_bull"]:
+        se1 = 1.0
+    elif pcr <= cfg["pcr_neutral_hi"]:
+        se1 = 0.0
+    else:
+        se1 = -2.0
+    items.append(("SE1", "SENTIMENT", se1, 2.0))
+
+    # ---- VALUATION ----
+    tp_now, tp_30 = _v2_num(fund.get("target_price")), _v2_num(target_price_30d_ago)
+    if tp_now is None or tp_30 is None or tp_30 <= 0:
+        va1 = None  # 歷史快照不足 30 日亦落此（呼叫端傳 None），靠重正規化吸收
+    else:
+        rev = tp_now / tp_30 - 1
+        va1 = 2.0 if rev > cfg["tp_rev_pct"] else (-2.0 if rev < -cfg["tp_rev_pct"] else 0.0)
+    items.append(("VA1", "VALUATION", va1, 2.0))
+
+    # ---- 桶彙總：clamp(sum, ±cap)；available 亦受桶 cap 限制 ----
+    caps = {"TREND": cfg["cap_trend"], "MOMENTUM": cfg["cap_momentum"],
+            "POSITIONING": cfg["cap_positioning"], "SENTIMENT": cfg["cap_sentiment"],
+            "VALUATION": cfg["cap_valuation"]}
+    buckets, earned, available_max, n_avail = {}, 0.0, 0.0, 0
+    details = []
+    for bname, cap in caps.items():
+        b_items = [(i, b, p, mx) for (i, b, p, mx) in items if b == bname]
+        b_sum = sum(p for (_, _, p, _) in b_items if p is not None)
+        b_score = max(-cap, min(cap, b_sum))
+        b_avail = min(cap, sum(mx for (_, _, p, mx) in b_items if p is not None))
+        earned += b_score
+        available_max += b_avail
+        b_details = []
+        for (iid, _, p, _) in b_items:
+            status = "na" if p is None else ("pos" if p > 0 else ("neg" if p < 0 else "zero"))
+            d = {"id": iid, "label": RATING_V2_LABELS[iid], "points": p, "status": status}
+            b_details.append(d)
+            details.append(d)
+            if p is not None:
+                n_avail += 1
+        buckets[bname] = {"score": round(b_score, 2), "cap": cap, "items": b_details}
+
+    completeness = f"{n_avail}/{len(items)}"
+    if available_max < cfg["min_available"]:
+        score_norm, rk = None, "na"
+    else:
+        score_norm = round(earned / available_max * 20.0, 2)
+        if score_norm >= cfg["map_sb"]: rk = "sb"
+        elif score_norm >= cfg["map_b"]: rk = "b"
+        elif score_norm > cfg["map_s"]: rk = "n"
+        elif score_norm > cfg["map_ss"]: rk = "s"
+        else: rk = "ss"
+
+    return {
+        "version": 2,
+        "score_norm": score_norm,
+        "earned": round(earned, 2),
+        "available_max": round(available_max, 2),
+        "completeness": completeness,
+        "buckets": buckets,
+        "rating": RATING_V2_RATING_ZH[rk],
+        "rating_key": rk,
+        "details": details,
+        # 僅顯示不計分的原始值（v1 C3/C5/C6 移除後保留資訊，SPEC §2.1）
+        "info": {"short_pct_float": _v2_num(fund.get("short_pct_float")),
+                 "trailing_pe": _v2_num(fund.get("trailing_pe")),
+                 "forward_pe": _v2_num(fund.get("forward_pe")),
+                 "target_price": tp_now, "target_price_30d_ago": tp_30},
+    }
+
+# =========================================================
+# 評等歷史 rating_history.json (SPEC_rating_v2 §6)
+# {TICKER: [{date, score_norm, rating_key, buckets, target_price, v1_total}, ...]}
+# 冪等 append（同日覆寫）、400 交易日裁剪、target_price 快照供 VA1。
+# Delta/sparkline 由前端讀 JSON 計算，後端只存乾淨時序。
+# =========================================================
+RATING_HISTORY_FILE = f"{OUTPUT_DIR}/data/rating_history.json"
+RATING_HISTORY_KEEP = 400  # 保留期（交易日筆數）
+
+def load_rating_history(path=RATING_HISTORY_FILE) -> dict:
+    """讀評等歷史；缺檔/壞檔回空 dict，pipeline 不中斷。"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except FileNotFoundError:
+        return {}
+    except Exception as e:
+        print(f"  ⚠️ rating_history 讀取失敗，重建: {e}")
+        return {}
+
+def target_price_from_history(entries, today_str: str, lookback_days: int = None) -> float | None:
+    """取 lookback 天（日曆日）前的目標價快照：date ≤ today−lookback 的最新一筆。
+    無此筆（上線未滿 lookback 天）→ None → VA1 判 N/A。"""
+    if lookback_days is None:
+        lookback_days = int(RATING_V2_CONFIG["tp_lookback_days"])
+    try:
+        cutoff = (datetime.strptime(today_str, "%Y-%m-%d") - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+    tp = None
+    for e in entries or []:  # entries 依日期升冪
+        d = e.get("date")
+        if not isinstance(d, str) or d > cutoff:
+            continue
+        v = e.get("target_price")
+        if v is not None:
+            tp = v  # 持續覆寫 → 留下 cutoff 前最新一筆
+    return tp
+
+def upsert_rating_history(history: dict, ticker: str, entry: dict,
+                          keep: int = RATING_HISTORY_KEEP) -> None:
+    """冪等 upsert：同 ticker 同 date 覆寫該筆；依日期升冪；裁剪至 keep 筆。"""
+    entries = [e for e in history.get(ticker, []) if isinstance(e, dict) and e.get("date")]
+    entries = [e for e in entries if e["date"] != entry["date"]]
+    entries.append(entry)
+    entries.sort(key=lambda e: e["date"])
+    history[ticker] = entries[-keep:]
+
+def write_rating_history(history: dict, path=RATING_HISTORY_FILE) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+
+def apply_rating_v2(stocks_data: dict, fund_data: dict, options_data: dict,
+                    history: dict = None, today_str: str = None) -> dict:
+    """對所有個股計算 v2 評等（需 rating_history 供 VA1），寫回 record["rating_v2"]，
+    並把當日快照 upsert 進 history（呼叫端負責 write_rating_history）。"""
+    history = load_rating_history() if history is None else history
+    today_str = today_str or now_et().strftime("%Y-%m-%d")
+    for tk, record in stocks_data.items():
+        fund = fund_data.get(tk, {})
+        tp30 = target_price_from_history(history.get(tk), today_str)
+        r2 = calculate_rating_v2(record, fund, options_data.get(tk), tp30)
+        record["rating_v2"] = r2
+        upsert_rating_history(history, tk, {
+            "date": today_str,
+            "score_norm": r2["score_norm"],
+            "rating_key": r2["rating_key"],
+            "buckets": {b: v["score"] for b, v in r2["buckets"].items()},
+            "target_price": r2["info"]["target_price"],
+            "v1_total": record.get("rating", {}).get("total"),  # 並行期對照回測用
+        })
+        sn = f"{r2['score_norm']:+.1f}" if r2["score_norm"] is not None else "na"
+        print(f"  ✓ {tk} v2 {r2['rating']} ({sn} · {r2['completeness']})")
+    return history
 
 # =========================================================
 # 前端 (深色終端, 綠漲紅跌)
@@ -3802,6 +4132,14 @@ def main():
                     if fund: fund_data[rid] = fund
             except Exception as exc:
                 print(f"  ⚠️ {tk} 錯誤: {exc}")
+
+    print("\n[1.5/5] 綜合評等 v2 (五桶對稱計分 + 評等歷史)...")
+    try:
+        rating_history = apply_rating_v2(stocks_data, fund_data, options_data)
+        write_rating_history(rating_history)
+        print(f"  ✓ 評等歷史 → {RATING_HISTORY_FILE}")
+    except Exception as e:
+        print(f"  ⚠️ 綜合評等 v2 失敗（v1 不受影響）: {e}")
 
     print("\n[2/5] 計算殘差動能 (滾動雙因子回歸 vs SPY/類股 ETF)...")
     needed_etfs = {sector_etf_for(fund_data.get(tk, {})) for tk in stocks_data}
