@@ -4,6 +4,12 @@
 > 完整攤開，方便交給 Claude / 他人評估檢討。所有內容忠實對應現行程式碼，
 > 核心函式為 `calculate_rating(data, fund, opt)`（`us_stock_dark.py:1113`）。
 
+> **狀態更新（2026-07-06）**：本文件 §5 的盲點已由 SPEC_rating_v2 回應——
+> `calculate_rating_v2()` 五桶對稱計分已實作並與 v1 並行（後端每日輸出
+> `docs/data/rating_history.json`），但 replay 回測驗收（§8.3）三項全數未過
+> （見 `docs/rating_validation.html`），故 **前端仍以本文件的 v1 為預設**，
+> v2 前端凍結至門檻調整後重驗通過。本文件保留為 v1 的現況紀錄。
+
 ---
 
 ## 0. 一句話總結

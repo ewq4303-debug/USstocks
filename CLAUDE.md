@@ -27,6 +27,28 @@
     標題在 `[訊號]` 後以富文本 `{a|→ 建議}`（`RM_ACTION_ZH`/`RM_ACTION_COLOR`）顯示客觀建議
     （加碼黃金點/部分調節/順勢續抱/減碼退出/觀望/不採信回歸），完整規則見 `i` 說明（`KINFO.resid`）；
     系統不做手動標記/動作推導。
+- 綜合評等 v2（SPEC_rating_v2，與 v1 並行、v1 零改動）：`calculate_rating_v2()` 五桶對稱計分
+  （TREND±6/MOMENTUM±5/POSITIONING±4/SENTIMENT±3/VALUATION±2，桶內 clamp）、
+  每項三態 +/0/−/N/A、缺值重正規化（`score_norm = earned/available_max×20`，
+  available<10 → `na` 資料不足不映射）；門檻集中 `RATING_V2_CONFIG`
+  （環境變數 `RATING_V2_<KEY大寫>` 覆寫）；v1 現況與盲點見 `docs/SCORING_LOGIC.md`
+  - 指標層（Phase 1）：`High_252`/`Low_252` 改用真實 High/Low（v1 T3 同步受惠）；
+    `latest.prev_close`；`compute_indicator_frame()`/`indicators_from_row()` 可 import
+    （replay 復用，禁止複製邏輯）；`rsi_raw`/`macd_hist_raw` 缺值保留 None 供 v2 判 N/A
+    （v1 仍沿用預設 50/0）
+  - 評等歷史 `docs/data/rating_history.json`：main 步驟 [1.5/5] 每日 upsert
+    （同 ticker 同日覆寫冪等）、400 交易日裁剪、`target_price` 每日快照供 VA1
+    30 日修訂方向（歷史未滿 30 日 VA1=N/A，靠重正規化吸收）；同時記 `v1_total` 供對照
+  - **驗收 gate（SPEC §8.3）**：`scripts/validate_rating_v2.py` replay 回測
+    （fund/opt 無歷史 → 只驗證 TREND+MOMENTUM ±11，v1 對照組同為技術面-only）→
+    `docs/rating_validation.html` + `docs/data/rating_validation.json`。
+    **2026-07-06 首驗三項全 FAIL**（30 檔×2年 14,795 樣本：20d median 單調性逆序
+    sb<b、s<ss；sb−ss 區分力 0.39pp<2pp；月均翻轉 6.17>4）→ **v2 不得設為前端預設，
+    Phase 5 前端凍結**；fwd5d 呈完美反序（ss 最強 +1.49%）= 多頭樣本短線均值回歸主導。
+    調整門檻後以 `.github/workflows/rating-validation.yml`（合入 main 後可
+    workflow_dispatch）重跑驗證，通過才做前端
+  - pytest：`python -m pytest tests/test_rating_v2.py`（無網路，三態/死區邊界/clamp/
+    重正規化/MIN_AVAILABLE/歷史冪等）
 - 宏觀 Regime 層 v2（SPEC_macro_regime_v2，`macro_regime.py` 純計算模組 + `us_stock_dark.py` 膠水）：
   - 掛在殘差 pipeline 之後（main 步驟 2.5）：個股殘差（手選 ∪ ref_universe 共用快取）→
     Breadth_own/ref/Divergence → SOXX+跨板塊 sector 迴歸 → regime 狀態機 v2（含 WARMUP）→
