@@ -1,99 +1,56 @@
-name: US Stock Monitor
+name: Rating v2 Replay Validation
+
+# SPEC_rating_v2 §8：v2 驗收回測（手動觸發）。
+# 通過標準：forward 20d median 單調、sb−ss ≥ 2pp、月均翻轉 ≤ 4。
+# 結果 (docs/rating_validation.html + docs/data/rating_validation.json)
+# commit 回觸發的分支；驗證結論不影響 job 成敗（結論由人工/後續步驟判讀）。
 
 on:
-  schedule:
-    # 美股交易日：周一到周五 08:00 ET (下午1點 台灣時間)
-    - cron: '0 8 * * 1-5'
-    # 盤後更新：周一到周五 16:30 ET (凌晨3:30 台灣時間)
-    - cron: '30 16 * * 1-5'
-  workflow_dispatch:  # 手動觸發按鈕
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  update:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    
+    timeout-minutes: 30
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
-      
+
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install yfinance pandas numpy requests
-      
-      - name: Fetch IBKR Daily NAV (Flex Web Service)
-        env:
-          IBKR_FLEX_TOKEN: ${{ secrets.IBKR_FLEX_TOKEN }}
-          IBKR_FLEX_QUERY_ID: ${{ secrets.IBKR_FLEX_QUERY_ID }}
+          pip install yfinance pandas numpy requests pytest
+
+      - name: Unit Tests (rating v2)
+        run: python -m pytest tests/test_rating_v2.py -q
+
+      - name: Replay Back-Validation
         run: |
           set +e
-          python fetch_ibkr_nav.py 2>&1 | tee /tmp/fetch_nav.log
+          python scripts/validate_rating_v2.py 2>&1 | tee /tmp/rating_validation.log
           code=${PIPESTATUS[0]}
-          if [ "$code" -eq 0 ]; then
-            python scripts/write_build_status.py fetch_nav ok "IBKR Flex NAV updated"
-          else
-            python scripts/write_build_status.py fetch_nav fail "$(tail -n 5 /tmp/fetch_nav.log | tr '\n' ' ')"
-          fi
+          echo "validation_exit_code=$code" >> "$GITHUB_OUTPUT"
+          # exit 2 = 驗收未通過（仍屬有效結果，報告照樣 commit）；exit 1 = 執行錯誤
+          if [ "$code" -eq 1 ]; then exit 1; fi
           exit 0
 
-      - name: Compute Portfolio Risk-Adjusted Metrics
-        run: |
-          set +e
-          python compute_metrics.py 2>&1 | tee /tmp/compute_metrics.log
-          code=${PIPESTATUS[0]}
-          if [ "$code" -eq 0 ]; then
-            python scripts/write_build_status.py compute_metrics ok "portfolio metrics updated"
-          else
-            python scripts/write_build_status.py compute_metrics fail "$(tail -n 5 /tmp/compute_metrics.log | tr '\n' ' ')"
-          fi
-          exit 0
-
-      - name: Run US Stock Monitor
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          US_STOCKS: ${{ secrets.US_STOCKS || 'AAPL,NVDA,MSFT,TSLA,GOOGL,AMZN' }}
-          AI_PROVIDER: ${{ secrets.AI_PROVIDER || 'claude' }}
-          CLAUDE_MODEL: ${{ secrets.CLAUDE_MODEL || 'claude-3-5-sonnet-20240620' }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-1.5-flash' }}
-          US_GAS_URL: ${{ secrets.US_GAS_URL }}
-          US_TRIGGER_URL: ${{ secrets.US_TRIGGER_URL }}
-        run: |
-          python us_stock_dark.py
-      
-      - name: Verify HTML Output
-        run: |
-          if [ -f docs/us.html ]; then
-            echo "✓ HTML file generated successfully"
-            wc -l docs/us.html
-          else
-            echo "✗ HTML file not found"
-            exit 1
-          fi
-      
-      - name: Commit and Push
-        if: success()
+      - name: Commit Report
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/ nav_history.json 2>/dev/null || true
-          # build_status.json is embedded into docs/us.html during generation and is intentionally
-          # left uncommitted to avoid timestamp-only merge conflicts between PR branches and main.
-          git reset -- docs/data/build_status.json 2>/dev/null || true
+          git add docs/rating_validation.html docs/data/rating_validation.json
           if ! git diff --staged --quiet; then
-            git commit -m "US stock update: $(date -u +'%Y-%m-%d %H:%M') UTC"
+            git commit -m "Rating v2 replay validation report"
             git push
           else
             echo "No changes to commit"
