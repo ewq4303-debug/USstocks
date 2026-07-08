@@ -29,9 +29,9 @@
   },
   "benchmarks": {
     "SPY": {
-      "sharpe": null,
-      "ann_return": null,
-      "ann_vol": null
+      "sharpe": -0.7778,
+      "ann_return": -0.1033,
+      "ann_vol": 0.1797
     },
     "SOXX": {
       "sharpe": -0.8373,
@@ -55,8 +55,8 @@
   },
   "treynor": {
     "benchmark": "SPY",
-    "beta": null,
-    "value": null,
+    "beta": 2.9752,
+    "value": -0.7416,
     "warning": "組合未充分分散，β 未涵蓋特異風險，此值偏樂觀，僅供參考"
   },
   "rolling_sharpe": {
@@ -87,6 +87,31 @@
       "2026-07-07"
     ],
     "portfolio": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "SPY": [
       null,
       null,
       null,
