@@ -8,7 +8,7 @@
   },
   "risk_free": {
     "mode": "tbill_3m",
-    "annual_rate": 0.036546,
+    "annual_rate": 0.036558,
     "fallback_used": false
   },
   "cashflow_adjusted": false,
@@ -21,7 +21,7 @@
       "value": -2.5658,
       "se": 3.1335,
       "ci95": [
-        -8.7074,
+        -8.7075,
         3.5759
       ]
     },
@@ -29,7 +29,7 @@
   },
   "benchmarks": {
     "SPY": {
-      "sharpe": -0.1475,
+      "sharpe": -0.1476,
       "ann_return": 0.0113,
       "ann_vol": 0.1709
     },
