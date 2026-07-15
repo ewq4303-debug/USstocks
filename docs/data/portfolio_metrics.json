@@ -8,7 +8,7 @@
   },
   "risk_free": {
     "mode": "tbill_3m",
-    "annual_rate": 0.036581,
+    "annual_rate": 0.036594,
     "fallback_used": false
   },
   "cashflow_adjusted": false,
@@ -22,41 +22,41 @@
       "se": 3.0153,
       "ci95": [
         -8.1784,
-        3.6415
+        3.6414
       ]
     },
-    "sortino": -2.8333
+    "sortino": -2.8334
   },
   "benchmarks": {
     "SPY": {
-      "sharpe": -0.6084,
-      "ann_return": -0.0663,
-      "ann_vol": 0.1691
+      "sharpe": -0.3969,
+      "ann_return": -0.0293,
+      "ann_vol": 0.1661
     },
     "SOXX": {
-      "sharpe": -0.687,
-      "ann_return": -0.5253,
-      "ann_vol": 0.818
+      "sharpe": -0.3612,
+      "ann_return": -0.2546,
+      "ann_vol": 0.8062
     },
     "QQQ": {
-      "sharpe": -1.1373,
-      "ann_return": -0.3373,
-      "ann_vol": 0.3288
+      "sharpe": -0.7788,
+      "ann_return": -0.2161,
+      "ann_vol": 0.3245
     }
   },
   "information_ratio": {
     "benchmark": "SOXX",
-    "ir": -7.0081,
-    "t_stat": -2.2074,
-    "significant": true,
-    "ann_active_return": -1.6936,
-    "tracking_error": 0.2417,
-    "note": "IR=-7.01、樣本 0.1 年 → t≈-2.21，已達顯著 (|t|>2)"
+    "ir": -5.2078,
+    "t_stat": -1.6728,
+    "significant": false,
+    "ann_active_return": -1.3561,
+    "tracking_error": 0.2604,
+    "note": "IR=-5.21、樣本 0.1 年 → t≈-1.67，尚在雜訊範圍"
   },
   "treynor": {
     "benchmark": "SPY",
-    "beta": 2.9721,
-    "value": -0.7589,
+    "beta": 3.041,
+    "value": -0.5417,
     "warning": "組合未充分分散，β 未涵蓋特異風險，此值偏樂觀，僅供參考"
   },
   "rolling_sharpe": {
