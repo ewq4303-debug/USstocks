@@ -1,62 +1,62 @@
 {
-  "as_of": "2026-07-14",
+  "as_of": "2026-07-15",
   "lookback": {
     "start": "2026-06-04",
-    "end": "2026-07-14",
-    "n_days": 28,
-    "years": 0.1111
+    "end": "2026-07-15",
+    "n_days": 29,
+    "years": 0.1151
   },
   "risk_free": {
     "mode": "tbill_3m",
-    "annual_rate": 0.036594,
+    "annual_rate": 0.036603,
     "fallback_used": false
   },
   "cashflow_adjusted": false,
   "portfolio": {
-    "ann_return": -1.4957,
-    "ann_vol": 0.6755,
-    "cagr": -0.8216,
-    "max_drawdown": -0.2546,
+    "ann_return": -2.1114,
+    "ann_vol": 0.6954,
+    "cagr": -0.9055,
+    "max_drawdown": -0.2747,
     "sharpe": {
-      "value": -2.2685,
-      "se": 3.0153,
+      "value": -3.0889,
+      "se": 2.9756,
       "ci95": [
-        -8.1784,
-        3.6414
+        -8.9211,
+        2.7432
       ]
     },
-    "sortino": -2.8334
+    "sortino": -3.7178
   },
   "benchmarks": {
     "SPY": {
-      "sharpe": -0.3969,
-      "ann_return": -0.0293,
-      "ann_vol": 0.1661
+      "sharpe": -0.1705,
+      "ann_return": 0.0087,
+      "ann_vol": 0.1634
     },
     "SOXX": {
-      "sharpe": -0.3612,
-      "ann_return": -0.2546,
-      "ann_vol": 0.8062
+      "sharpe": -0.6174,
+      "ann_return": -0.4531,
+      "ann_vol": 0.7932
     },
     "QQQ": {
-      "sharpe": -0.7788,
-      "ann_return": -0.2161,
-      "ann_vol": 0.3245
+      "sharpe": -0.8484,
+      "ann_return": -0.2334,
+      "ann_vol": 0.3182
     }
   },
   "information_ratio": {
     "benchmark": "SOXX",
-    "ir": -5.2078,
-    "t_stat": -1.6728,
-    "significant": false,
-    "ann_active_return": -1.3561,
-    "tracking_error": 0.2604,
-    "note": "IR=-5.21、樣本 0.1 年 → t≈-1.67，尚在雜訊範圍"
+    "ir": -6.1267,
+    "t_stat": -2.0054,
+    "significant": true,
+    "ann_active_return": -1.8148,
+    "tracking_error": 0.2962,
+    "note": "IR=-6.13、樣本 0.1 年 → t≈-2.01，已達顯著 (|t|>2)"
   },
   "treynor": {
     "benchmark": "SPY",
-    "beta": 3.041,
-    "value": -0.5417,
+    "beta": 2.9229,
+    "value": -0.7884,
     "warning": "組合未充分分散，β 未涵蓋特異風險，此值偏樂觀，僅供參考"
   },
   "rolling_sharpe": {
@@ -89,9 +89,11 @@
       "2026-07-09",
       "2026-07-10",
       "2026-07-13",
-      "2026-07-14"
+      "2026-07-14",
+      "2026-07-15"
     ],
     "portfolio": [
+      null,
       null,
       null,
       null,
@@ -149,9 +151,11 @@
       null,
       null,
       null,
+      null,
       null
     ],
     "SOXX": [
+      null,
       null,
       null,
       null,
