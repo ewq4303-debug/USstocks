@@ -1,228 +1,344 @@
 {
-  "fetched_at": "2026-07-21 17:04 ET",
+  "fetched_at": "2026-07-23 17:05 ET",
   "summary": {
     "currency": "USD",
-    "net_liquidation": 71883.01,
-    "gross_position_value": 79630.17,
-    "total_cash_value": -7431.87,
-    "available_funds": 41771.55,
-    "buying_power": 166152.58,
+    "net_liquidation": 72366.12,
+    "gross_position_value": 51851.13,
+    "total_cash_value": 25703.4,
+    "available_funds": 51548.59,
+    "buying_power": 205990.15,
     "dividends": 0.08,
-    "leverage": "1.11"
+    "leverage": "0.72"
   },
   "positions": [
     {
       "symbol": "AMD",
       "position": 29.0,
-      "average_price": 529.913793,
-      "market_price": 544.959473,
-      "market_value": 15803.824707,
-      "unrealized_pnl": 436.324707,
-      "daily_pnl": 787.344707,
-      "currency": "USD"
-    },
-    {
-      "symbol": "DRAM",
-      "position": 250.0,
-      "average_price": 55.772003,
-      "market_price": 59.639999,
-      "market_value": 14909.99985,
-      "unrealized_pnl": 966.99905,
-      "daily_pnl": 1121.99935,
+      "average_price": 529.913797,
+      "market_price": 554.599976,
+      "market_value": 16083.399292,
+      "unrealized_pnl": 715.899192,
+      "daily_pnl": 65.829292,
       "currency": "USD"
     },
     {
       "symbol": "SSPC",
-      "position": 810.0,
-      "average_price": 18.844823,
-      "market_price": 18.030001,
-      "market_value": 14604.300567,
-      "unrealized_pnl": -660.006014,
-      "daily_pnl": -1752.614133,
-      "currency": "USD"
-    },
-    {
-      "symbol": "SOXL",
-      "position": 40.0,
-      "average_price": 153.275002,
-      "market_price": 158.910004,
-      "market_value": 6356.400146,
-      "unrealized_pnl": 225.400046,
-      "daily_pnl": 225.400046,
+      "position": 500.0,
+      "average_price": 19.164102,
+      "market_price": 19.82,
+      "market_value": 9909.99985,
+      "unrealized_pnl": 327.948982,
+      "daily_pnl": -647.50275,
       "currency": "USD"
     },
     {
       "symbol": "MNST",
       "position": 50.0,
       "average_price": 97.965336,
-      "market_price": 94.510002,
-      "market_value": 4725.500108,
-      "unrealized_pnl": -172.766693,
-      "daily_pnl": -46.999893,
-      "currency": "USD"
-    },
-    {
-      "symbol": "KORU",
-      "position": 200.0,
-      "average_price": 20.960003,
-      "market_price": 22.34,
-      "market_value": 4468.00003,
-      "unrealized_pnl": 275.99943,
-      "daily_pnl": 275.99943,
-      "currency": "USD"
-    },
-    {
-      "symbol": "SKUU",
-      "position": 150.0,
-      "average_price": 27.20667,
-      "market_price": 29.27,
-      "market_value": 4390.500068,
-      "unrealized_pnl": 309.499568,
-      "daily_pnl": 309.499568,
+      "market_price": 93.150002,
+      "market_value": 4657.500077,
+      "unrealized_pnl": -240.766722,
+      "daily_pnl": -125.999922,
       "currency": "USD"
     },
     {
       "symbol": "MSFT",
       "position": 8.0,
       "average_price": 395.69,
-      "market_price": 397.247498,
-      "market_value": 3177.97998,
-      "unrealized_pnl": 12.45998,
-      "daily_pnl": -31.36002,
+      "market_price": 382.519989,
+      "market_value": 3060.159912,
+      "unrealized_pnl": -105.360088,
+      "daily_pnl": -62.560088,
+      "currency": "USD"
+    },
+    {
+      "symbol": "DRAM",
+      "position": 50.0,
+      "average_price": 55.772003,
+      "market_price": 58.740002,
+      "market_value": 2937.000085,
+      "unrealized_pnl": 148.399922,
+      "daily_pnl": -46.775615,
       "currency": "USD"
     },
     {
       "symbol": "AAOI",
       "position": 21.0,
       "average_price": 117.749852,
-      "market_price": 120.349998,
-      "market_value": 2527.349967,
-      "unrealized_pnl": 54.603067,
-      "daily_pnl": 123.329867,
+      "market_price": 113.150002,
+      "market_value": 2376.150033,
+      "unrealized_pnl": -96.596867,
+      "daily_pnl": 55.230033,
       "currency": "USD"
     },
     {
       "symbol": "CRWD",
       "position": 12.0,
       "average_price": 186.10425,
-      "market_price": 191.008301,
-      "market_value": 2292.09961,
-      "unrealized_pnl": 58.84861,
-      "daily_pnl": -89.78039,
+      "market_price": 182.620605,
+      "market_value": 2191.447265,
+      "unrealized_pnl": -41.803735,
+      "daily_pnl": -69.592735,
+      "currency": "USD"
+    },
+    {
+      "symbol": "SKUU",
+      "position": 75.0,
+      "average_price": 27.20667,
+      "market_price": 28.51,
+      "market_value": 2138.250019,
+      "unrealized_pnl": 97.749776,
+      "daily_pnl": 419.688907,
       "currency": "USD"
     },
     {
       "symbol": "NET",
       "position": 8.0,
       "average_price": 212.5814,
-      "market_price": 272.649994,
-      "market_value": 2181.199951,
-      "unrealized_pnl": 480.548751,
-      "daily_pnl": 1.839951,
+      "market_price": 262.0,
+      "market_value": 2096.0,
+      "unrealized_pnl": 395.3488,
+      "daily_pnl": -55.84,
       "currency": "USD"
     },
     {
-      "symbol": "GOOG",
-      "position": 4.0,
-      "average_price": 365.2125,
-      "market_price": 347.049988,
-      "market_value": 1388.199951,
-      "unrealized_pnl": -72.650049,
-      "daily_pnl": -17.280049,
+      "symbol": "KORU",
+      "position": 50.0,
+      "average_price": 21.343335,
+      "market_price": 22.200001,
+      "market_value": 1110.000037,
+      "unrealized_pnl": 42.833272,
+      "daily_pnl": 213.337637,
       "currency": "USD"
     },
     {
       "symbol": "LITE",
       "position": 1.1664,
       "average_price": 935.138117,
-      "market_price": 841.200012,
-      "market_value": 981.175694,
-      "unrealized_pnl": -109.569406,
-      "daily_pnl": 88.238174,
+      "market_price": 836.299988,
+      "market_value": 975.460306,
+      "unrealized_pnl": -115.284794,
+      "daily_pnl": 7.698226,
       "currency": "USD"
     },
     {
       "symbol": "VRT",
       "position": 3.0,
       "average_price": 336.600333,
-      "market_price": 306.029999,
-      "market_value": 918.089996,
-      "unrealized_pnl": -91.711004,
-      "daily_pnl": 43.079996,
+      "market_price": 305.320007,
+      "market_value": 915.960022,
+      "unrealized_pnl": -93.840978,
+      "daily_pnl": 12.480022,
       "currency": "USD"
     },
     {
       "symbol": "MRVL",
       "position": 2.0,
       "average_price": 286.33415,
-      "market_price": 210.5,
-      "market_value": 421.0,
-      "unrealized_pnl": -151.6683,
-      "daily_pnl": 31.12,
+      "market_price": 211.5,
+      "market_value": 423.0,
+      "unrealized_pnl": -149.6683,
+      "daily_pnl": 1.02,
       "currency": "USD"
     },
     {
       "symbol": "AVGO",
       "position": 0.8,
       "average_price": 429.0,
-      "market_price": 386.019989,
-      "market_value": 308.815991,
-      "unrealized_pnl": -34.384009,
-      "daily_pnl": 6.287991,
+      "market_price": 393.779999,
+      "market_value": 315.023999,
+      "unrealized_pnl": -28.176001,
+      "daily_pnl": -2.424001,
       "currency": "USD"
     },
     {
       "symbol": "IAU",
       "position": 0.8,
       "average_price": 91.76,
-      "market_price": 76.699997,
-      "market_value": 61.359998,
-      "unrealized_pnl": -12.048002,
-      "daily_pnl": 1.079998,
+      "market_price": 76.176102,
+      "market_value": 60.940881,
+      "unrealized_pnl": -12.467119,
+      "daily_pnl": -1.211119,
       "currency": "USD"
     },
     {
       "symbol": "REMX",
       "position": 0.192,
       "average_price": 95.3,
-      "market_price": 71.949997,
-      "market_value": 13.814399,
-      "unrealized_pnl": -4.483201,
-      "daily_pnl": 0.403199,
+      "market_price": 69.650002,
+      "market_value": 13.3728,
+      "unrealized_pnl": -4.9248,
+      "daily_pnl": -0.25152,
       "currency": "USD"
     },
     {
       "symbol": "NOK",
       "position": 1.0,
       "average_price": 14.89,
-      "market_price": 10.8692,
-      "market_value": 10.8692,
-      "unrealized_pnl": -4.0208,
-      "daily_pnl": 0.7892,
+      "market_price": 9.78,
+      "market_value": 9.78,
+      "unrealized_pnl": -5.11,
+      "daily_pnl": -0.5,
       "currency": "USD"
     },
     {
-      "symbol": "XLV",
+      "symbol": "GOOG",
       "position": 0.0,
       "average_price": 0.0,
-      "market_price": 160.25,
+      "market_price": 319.380005,
       "market_value": 0.0,
-      "unrealized_pnl": 3.7e-05,
-      "daily_pnl": 0.4087,
+      "unrealized_pnl": 0.0,
+      "daily_pnl": -21.8685,
       "currency": "USD"
     },
     {
       "symbol": "GLW",
       "position": -1.0,
       "average_price": 184.496,
-      "market_price": 163.679993,
-      "market_value": -163.679993,
-      "unrealized_pnl": 20.816007,
-      "daily_pnl": -10.579993,
+      "market_price": 157.747894,
+      "market_value": -157.747894,
+      "unrealized_pnl": 26.748106,
+      "daily_pnl": -3.687894,
+      "currency": "USD"
+    },
+    {
+      "symbol": "SOXL",
+      "position": -15.0,
+      "average_price": 162.746443,
+      "market_price": 162.949997,
+      "market_value": -2444.249954,
+      "unrealized_pnl": -3.053311,
+      "daily_pnl": -327.137254,
       "currency": "USD"
     }
   ],
   "trades": [
+    {
+      "symbol": "SOXL",
+      "side": "SELL",
+      "size": 15.0,
+      "price": 162.75,
+      "trade_time": "2026-07-23T14:22:38Z"
+    },
+    {
+      "symbol": "SOXL",
+      "side": "SELL",
+      "size": 5.0,
+      "price": 162.75,
+      "trade_time": "2026-07-23T14:22:38Z"
+    },
+    {
+      "symbol": "DRAM",
+      "side": "SELL",
+      "size": 46.0,
+      "price": 57.11,
+      "trade_time": "2026-07-23T13:06:18Z"
+    },
+    {
+      "symbol": "DRAM",
+      "side": "SELL",
+      "size": 4.0,
+      "price": 57.11,
+      "trade_time": "2026-07-23T13:06:17Z"
+    },
+    {
+      "symbol": "SOXL",
+      "side": "SELL",
+      "size": 35.0,
+      "price": 151.54,
+      "trade_time": "2026-07-23T12:48:38Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "SELL",
+      "size": 150.0,
+      "price": 21.07,
+      "trade_time": "2026-07-23T12:48:05Z"
+    },
+    {
+      "symbol": "DRAM",
+      "side": "SELL",
+      "size": 150.0,
+      "price": 57.37,
+      "trade_time": "2026-07-23T12:47:40Z"
+    },
+    {
+      "symbol": "SSPC",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 20.35,
+      "trade_time": "2026-07-23T09:28:24Z"
+    },
+    {
+      "symbol": "SKUU",
+      "side": "SELL",
+      "size": 75.0,
+      "price": 29.94,
+      "trade_time": "2026-07-23T09:28:00Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "SELL",
+      "size": 100.0,
+      "price": 23.08,
+      "trade_time": "2026-07-23T09:27:33Z"
+    },
+    {
+      "symbol": "SSPC",
+      "side": "SELL",
+      "size": 100.0,
+      "price": 20.48,
+      "trade_time": "2026-07-23T01:48:16Z"
+    },
+    {
+      "symbol": "SSPC",
+      "side": "SELL",
+      "size": 50.0,
+      "price": 20.21,
+      "trade_time": "2026-07-23T00:57:59Z"
+    },
+    {
+      "symbol": "SSPC",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 20.21,
+      "trade_time": "2026-07-23T00:57:59Z"
+    },
+    {
+      "symbol": "SSPC",
+      "side": "SELL",
+      "size": 10.0,
+      "price": 20.21,
+      "trade_time": "2026-07-23T00:57:59Z"
+    },
+    {
+      "symbol": "SSPC",
+      "side": "SELL",
+      "size": 149.0,
+      "price": 20.21,
+      "trade_time": "2026-07-23T00:57:59Z"
+    },
+    {
+      "symbol": "SSPC",
+      "side": "SELL",
+      "size": 100.0,
+      "price": 20.21,
+      "trade_time": "2026-07-23T00:57:59Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 22.1,
+      "trade_time": "2026-07-23T00:29:00Z"
+    },
+    {
+      "symbol": "GOOG",
+      "side": "SELL",
+      "size": 4.0,
+      "price": 336.7,
+      "trade_time": "2026-07-23T00:27:43Z"
+    },
     {
       "symbol": "SSPC",
       "side": "SELL",
@@ -1003,6 +1119,13 @@
     {
       "symbol": "SNDK",
       "side": "SELL",
+      "size": 5.0,
+      "price": 1440.14,
+      "trade_time": "2026-07-16T16:10:38Z"
+    },
+    {
+      "symbol": "SNDK",
+      "side": "SELL",
       "size": 1.0,
       "price": 1440.14,
       "trade_time": "2026-07-16T16:10:38Z"
@@ -1011,13 +1134,6 @@
       "symbol": "SNDK",
       "side": "SELL",
       "size": 4.0,
-      "price": 1440.14,
-      "trade_time": "2026-07-16T16:10:38Z"
-    },
-    {
-      "symbol": "SNDK",
-      "side": "SELL",
-      "size": 5.0,
       "price": 1440.14,
       "trade_time": "2026-07-16T16:10:38Z"
     },
