@@ -1,62 +1,62 @@
 {
-  "as_of": "2026-07-30",
+  "as_of": "2026-07-31",
   "lookback": {
     "start": "2026-06-04",
-    "end": "2026-07-30",
-    "n_days": 40,
-    "years": 0.1587
+    "end": "2026-07-31",
+    "n_days": 41,
+    "years": 0.1627
   },
   "risk_free": {
     "mode": "tbill_3m",
-    "annual_rate": 0.036788,
+    "annual_rate": 0.036789,
     "fallback_used": false
   },
   "cashflow_adjusted": false,
   "portfolio": {
-    "ann_return": -1.7564,
-    "ann_vol": 0.6449,
-    "cagr": -0.8605,
+    "ann_return": -1.8759,
+    "ann_vol": 0.6386,
+    "cagr": -0.8759,
     "max_drawdown": -0.3614,
     "sharpe": {
-      "value": -2.7806,
-      "se": 2.5292,
+      "value": -2.9951,
+      "se": 2.5011,
       "ci95": [
-        -7.7378,
-        2.1765
+        -7.8973,
+        1.9072
       ]
     },
-    "sortino": -3.3172
+    "sortino": -3.5552
   },
   "benchmarks": {
     "SPY": {
-      "sharpe": -0.9161,
-      "ann_return": -0.1072,
-      "ann_vol": 0.1571
+      "sharpe": -0.6059,
+      "ann_return": -0.0579,
+      "ann_vol": 0.1562
     },
     "SOXX": {
-      "sharpe": -1.2224,
-      "ann_return": -0.8913,
-      "ann_vol": 0.7592
+      "sharpe": -1.2021,
+      "ann_return": -0.8638,
+      "ann_vol": 0.7492
     },
     "QQQ": {
-      "sharpe": -1.7166,
-      "ann_return": -0.4797,
-      "ann_vol": 0.3009
+      "sharpe": -1.5528,
+      "ann_return": -0.4255,
+      "ann_vol": 0.2977
     }
   },
   "information_ratio": {
     "benchmark": "SOXX",
-    "ir": -2.053,
-    "t_stat": -0.7972,
+    "ir": -2.3883,
+    "t_stat": -0.9396,
     "significant": false,
-    "ann_active_return": -0.9575,
-    "tracking_error": 0.4664,
-    "note": "IR=-2.05、樣本 0.2 年 → t≈-0.80，尚在雜訊範圍"
+    "ann_active_return": -1.1082,
+    "tracking_error": 0.464,
+    "note": "IR=-2.39、樣本 0.2 年 → t≈-0.94，尚在雜訊範圍"
   },
   "treynor": {
     "benchmark": "SPY",
-    "beta": 2.4938,
-    "value": -0.7561,
+    "beta": 2.417,
+    "value": -0.8312,
     "warning": "組合未充分分散，β 未涵蓋特異風險，此值偏樂觀，僅供參考"
   },
   "rolling_sharpe": {
@@ -101,9 +101,11 @@
       "2026-07-27",
       "2026-07-28",
       "2026-07-29",
-      "2026-07-30"
+      "2026-07-30",
+      "2026-07-31"
     ],
     "portfolio": [
+      null,
       null,
       null,
       null,
@@ -185,9 +187,11 @@
       null,
       null,
       null,
+      null,
       null
     ],
     "SOXX": [
+      null,
       null,
       null,
       null,
