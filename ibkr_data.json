@@ -1,198 +1,730 @@
 {
-  "fetched_at": "2026-08-11 17:06 ET",
+  "fetched_at": "2026-08-13 17:10 ET",
   "summary": {
     "currency": "USD",
-    "net_liquidation": 71468.97,
-    "gross_position_value": 71935.12,
-    "total_cash_value": -417.41,
-    "available_funds": 24944.59,
-    "buying_power": 99778.38,
-    "dividends": 0.03,
-    "leverage": "1.01"
+    "net_liquidation": 75151.9,
+    "gross_position_value": 94054.03,
+    "total_cash_value": -18897.41,
+    "available_funds": 10814.03,
+    "buying_power": 43256.14,
+    "dividends": 0.0,
+    "leverage": "1.25"
   },
   "positions": [
     {
-      "symbol": "TQQQ",
-      "position": 400.0,
-      "average_price": 72.572473,
-      "market_price": 73.169998,
-      "market_value": 29267.99926,
-      "unrealized_pnl": 239.01006,
-      "daily_pnl": -263.00104,
-      "currency": "USD"
-    },
-    {
       "symbol": "SOXL",
-      "position": 100.0,
-      "average_price": 135.634003,
-      "market_price": 133.660004,
-      "market_value": 13366.000365,
-      "unrealized_pnl": -197.399935,
-      "daily_pnl": 366.000365,
+      "position": 370.0,
+      "average_price": 143.517544,
+      "market_price": 145.710007,
+      "market_value": 53912.702479,
+      "unrealized_pnl": 811.211354,
+      "daily_pnl": 196.211479,
       "currency": "USD"
     },
     {
-      "symbol": "UGL",
-      "position": 130.0,
-      "average_price": 49.587418,
-      "market_price": 51.148102,
-      "market_value": 6649.253234,
-      "unrealized_pnl": 202.888834,
-      "daily_pnl": -73.046766,
-      "currency": "USD"
-    },
-    {
-      "symbol": "GDXU",
-      "position": 30.0,
-      "average_price": 131.241003,
-      "market_price": 131.5,
-      "market_value": 3945.0,
-      "unrealized_pnl": 7.7699,
-      "daily_pnl": -28.3301,
-      "currency": "USD"
-    },
-    {
-      "symbol": "MAGX",
-      "position": 50.0,
-      "average_price": 56.890004,
-      "market_price": 56.302399,
-      "market_value": 2815.119935,
-      "unrealized_pnl": -29.380265,
-      "daily_pnl": -74.190065,
-      "currency": "USD"
-    },
-    {
-      "symbol": "LITX",
-      "position": 100.0,
-      "average_price": 32.409502,
-      "market_price": 27.700001,
-      "market_value": 2770.000075,
-      "unrealized_pnl": -470.950166,
-      "daily_pnl": 6.926475,
-      "currency": "USD"
-    },
-    {
-      "symbol": "AVGX",
-      "position": 45.0,
-      "average_price": 57.224224,
-      "market_price": 54.799999,
-      "market_value": 2465.999966,
-      "unrealized_pnl": -109.090134,
-      "daily_pnl": -70.200034,
+      "symbol": "TQQQ",
+      "position": 300.0,
+      "average_price": 73.608296,
+      "market_price": 77.300003,
+      "market_value": 23190.000915,
+      "unrealized_pnl": 1107.512015,
+      "daily_pnl": 810.000915,
       "currency": "USD"
     },
     {
       "symbol": "CRWD",
-      "position": 10.0,
-      "average_price": 206.5561,
-      "market_price": 221.732193,
-      "market_value": 2217.32193,
-      "unrealized_pnl": 151.76093,
-      "daily_pnl": -34.27807,
+      "position": 11.0,
+      "average_price": 207.778273,
+      "market_price": 225.789993,
+      "market_value": 2483.689926,
+      "unrealized_pnl": 198.128923,
+      "daily_pnl": 44.109926,
+      "currency": "USD"
+    },
+    {
+      "symbol": "SKUU",
+      "position": 100.0,
+      "average_price": 24.595003,
+      "market_price": 24.549999,
+      "market_value": 2454.999925,
+      "unrealized_pnl": -4.500375,
+      "daily_pnl": -4.500375,
       "currency": "USD"
     },
     {
       "symbol": "NET",
       "position": 6.0,
       "average_price": 240.1552,
-      "market_price": 308.0,
-      "market_value": 1848.0,
-      "unrealized_pnl": 407.0688,
-      "daily_pnl": -15.54,
-      "currency": "USD"
-    },
-    {
-      "symbol": "GLW",
-      "position": 8.0,
-      "average_price": 164.179587,
-      "market_price": 160.009995,
-      "market_value": 1280.079956,
-      "unrealized_pnl": -33.356744,
-      "daily_pnl": 17.999956,
+      "market_price": 330.809998,
+      "market_value": 1984.859985,
+      "unrealized_pnl": 543.928785,
+      "daily_pnl": 116.159985,
       "currency": "USD"
     },
     {
       "symbol": "BE",
-      "position": 6.0,
-      "average_price": 219.833333,
-      "market_price": 212.410004,
-      "market_value": 1274.460022,
-      "unrealized_pnl": -44.539978,
-      "daily_pnl": 10.680022,
+      "position": 8.0,
+      "average_price": 224.375001,
+      "market_price": 237.850006,
+      "market_value": 1902.800049,
+      "unrealized_pnl": 107.800043,
+      "daily_pnl": 5.520049,
       "currency": "USD"
     },
     {
-      "symbol": "AAOI",
-      "position": 9.0,
-      "average_price": 139.561111,
-      "market_price": 134.429993,
-      "market_value": 1209.869934,
-      "unrealized_pnl": -46.180066,
-      "daily_pnl": 14.579934,
+      "symbol": "GEV",
+      "position": 1.8,
+      "average_price": 1035.280308,
+      "market_price": 1051.52002,
+      "market_value": 1892.736035,
+      "unrealized_pnl": 29.231481,
+      "daily_pnl": 26.536035,
+      "currency": "USD"
+    },
+    {
+      "symbol": "GLW",
+      "position": 10.0,
+      "average_price": 164.843671,
+      "market_price": 159.330307,
+      "market_value": 1593.30307,
+      "unrealized_pnl": -55.133636,
+      "daily_pnl": -81.09693,
       "currency": "USD"
     },
     {
       "symbol": "AVGO",
-      "position": 0.8,
-      "average_price": 429.0,
-      "market_price": 416.480011,
-      "market_value": 333.184009,
-      "unrealized_pnl": -10.015991,
-      "daily_pnl": -4.735991,
+      "position": 2.0,
+      "average_price": 425.293002,
+      "market_price": 419.380005,
+      "market_value": 838.76001,
+      "unrealized_pnl": -11.825994,
+      "daily_pnl": 6.66001,
+      "currency": "USD"
+    },
+    {
+      "symbol": "NBIS",
+      "position": 3.0,
+      "average_price": 251.106162,
+      "market_price": 255.539993,
+      "market_value": 766.61998,
+      "unrealized_pnl": 13.301495,
+      "daily_pnl": 3.73418,
+      "currency": "USD"
+    },
+    {
+      "symbol": "NBIL",
+      "position": 15.0,
+      "average_price": 38.304763,
+      "market_price": 33.849998,
+      "market_value": 507.749977,
+      "unrealized_pnl": -66.821474,
+      "daily_pnl": -311.334023,
+      "currency": "USD"
+    },
+    {
+      "symbol": "LITX",
+      "position": 10.0,
+      "average_price": 31.006674,
+      "market_price": 31.51,
+      "market_value": 315.100003,
+      "unrealized_pnl": 5.033258,
+      "daily_pnl": -48.026897,
       "currency": "USD"
     },
     {
       "symbol": "VRT",
       "position": 1.0,
       "average_price": 336.0083,
-      "market_price": 282.5,
-      "market_value": 282.5,
-      "unrealized_pnl": -53.5083,
-      "daily_pnl": 12.4,
+      "market_price": 287.269989,
+      "market_value": 287.269989,
+      "unrealized_pnl": -48.738311,
+      "daily_pnl": -1.090011,
+      "currency": "USD"
+    },
+    {
+      "symbol": "GDXU",
+      "position": 0.0,
+      "average_price": 0.0,
+      "market_price": 123.360001,
+      "market_value": 0.0,
+      "unrealized_pnl": 9e-06,
+      "daily_pnl": -575.6748,
       "currency": "USD"
     },
     {
       "symbol": "IAU",
-      "position": 0.8,
-      "average_price": 91.76,
-      "market_price": 82.139999,
-      "market_value": 65.712,
-      "unrealized_pnl": -7.696,
-      "daily_pnl": -0.296,
-      "currency": "USD"
-    },
-    {
-      "symbol": "REMX",
-      "position": 0.192,
-      "average_price": 95.3,
-      "market_price": 76.599998,
-      "market_value": 14.7072,
-      "unrealized_pnl": -3.5904,
-      "daily_pnl": -0.3552,
+      "position": 0.0,
+      "average_price": 0.0,
+      "market_price": 82.18,
+      "market_value": 0.0,
+      "unrealized_pnl": -2.6e-05,
+      "daily_pnl": -1.2277,
       "currency": "USD"
     },
     {
       "symbol": "NOK",
-      "position": 1.0,
-      "average_price": 14.89,
-      "market_price": 9.47,
-      "market_value": 9.47,
-      "unrealized_pnl": -5.42,
-      "daily_pnl": 0.34,
+      "position": 0.0,
+      "average_price": 0.0,
+      "market_price": 10.65,
+      "market_value": 0.0,
+      "unrealized_pnl": -3.4e-05,
+      "daily_pnl": 0.1587,
       "currency": "USD"
     },
     {
-      "symbol": "MRVL",
-      "position": -0.1,
-      "average_price": 186.176,
-      "market_price": 213.699997,
-      "market_value": -21.37,
-      "unrealized_pnl": -2.7524,
-      "daily_pnl": -0.514,
+      "symbol": "SPCX",
+      "position": 0.0,
+      "average_price": 0.0,
+      "market_price": 141.740005,
+      "market_value": 0.0,
+      "unrealized_pnl": -5e-06,
+      "daily_pnl": -50.4174,
+      "currency": "USD"
+    },
+    {
+      "symbol": "UGL",
+      "position": 0.0,
+      "average_price": 0.0,
+      "market_price": 50.77,
+      "market_value": 0.0,
+      "unrealized_pnl": -1.7e-05,
+      "daily_pnl": -134.239,
       "currency": "USD"
     }
   ],
   "trades": [
+    {
+      "symbol": "SOXL",
+      "side": "BUY",
+      "size": 20.0,
+      "price": 147.0,
+      "trade_time": "2026-08-13T19:30:00Z"
+    },
+    {
+      "symbol": "SOXL",
+      "side": "BUY",
+      "size": 20.0,
+      "price": 149.5,
+      "trade_time": "2026-08-13T15:51:35Z"
+    },
+    {
+      "symbol": "SKUU",
+      "side": "BUY",
+      "size": 48.0,
+      "price": 24.45,
+      "trade_time": "2026-08-13T15:40:53Z"
+    },
+    {
+      "symbol": "SKUU",
+      "side": "BUY",
+      "size": 2.0,
+      "price": 24.45,
+      "trade_time": "2026-08-13T15:40:52Z"
+    },
+    {
+      "symbol": "SKUU",
+      "side": "BUY",
+      "size": 50.0,
+      "price": 24.7,
+      "trade_time": "2026-08-13T15:29:44Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "SELL",
+      "size": 90.0,
+      "price": 34.0,
+      "trade_time": "2026-08-13T15:26:43Z"
+    },
+    {
+      "symbol": "NBIL",
+      "side": "SELL",
+      "size": 90.0,
+      "price": 35.6,
+      "trade_time": "2026-08-13T15:22:08Z"
+    },
+    {
+      "symbol": "NBIS",
+      "side": "SELL",
+      "size": 10.0,
+      "price": 261.235,
+      "trade_time": "2026-08-13T15:21:42Z"
+    },
+    {
+      "symbol": "NBIL",
+      "side": "BUY",
+      "size": 15.0,
+      "price": 36.9,
+      "trade_time": "2026-08-13T15:04:27Z"
+    },
+    {
+      "symbol": "NBIL",
+      "side": "BUY",
+      "size": 10.0,
+      "price": 37.7,
+      "trade_time": "2026-08-13T14:55:19Z"
+    },
+    {
+      "symbol": "NBIL",
+      "side": "BUY",
+      "size": 10.0,
+      "price": 38.0,
+      "trade_time": "2026-08-13T14:51:50Z"
+    },
+    {
+      "symbol": "NBIL",
+      "side": "BUY",
+      "size": 25.0,
+      "price": 38.6,
+      "trade_time": "2026-08-13T14:40:53Z"
+    },
+    {
+      "symbol": "SPCX",
+      "side": "SELL",
+      "size": 12.0,
+      "price": 141.76,
+      "trade_time": "2026-08-13T14:39:46Z"
+    },
+    {
+      "symbol": "NBIL",
+      "side": "BUY",
+      "size": 45.0,
+      "price": 38.7,
+      "trade_time": "2026-08-13T14:38:12Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "SELL",
+      "size": 37.0,
+      "price": 35.2,
+      "trade_time": "2026-08-13T14:31:30Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "SELL",
+      "size": 6.0,
+      "price": 35.2,
+      "trade_time": "2026-08-13T14:31:30Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 35.2,
+      "trade_time": "2026-08-13T14:31:28Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 35.2,
+      "trade_time": "2026-08-13T14:31:25Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 35.2,
+      "trade_time": "2026-08-13T14:31:22Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 35.2,
+      "trade_time": "2026-08-13T14:31:20Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 35.2,
+      "trade_time": "2026-08-13T14:31:18Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 35.2,
+      "trade_time": "2026-08-13T14:31:16Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 35.2,
+      "trade_time": "2026-08-13T14:31:13Z"
+    },
+    {
+      "symbol": "GDXU",
+      "side": "SELL",
+      "size": 30.0,
+      "price": 123.09,
+      "trade_time": "2026-08-13T14:29:02Z"
+    },
+    {
+      "symbol": "SOXL",
+      "side": "BUY",
+      "size": 10.0,
+      "price": 148.5,
+      "trade_time": "2026-08-13T14:20:15Z"
+    },
+    {
+      "symbol": "GDXU",
+      "side": "BUY",
+      "size": 10.0,
+      "price": 124.07,
+      "trade_time": "2026-08-13T14:20:06Z"
+    },
+    {
+      "symbol": "SOXL",
+      "side": "BUY",
+      "size": 20.0,
+      "price": 149.0,
+      "trade_time": "2026-08-13T14:19:31Z"
+    },
+    {
+      "symbol": "UGL",
+      "side": "SELL",
+      "size": 30.0,
+      "price": 51.435,
+      "trade_time": "2026-08-13T14:19:22Z"
+    },
+    {
+      "symbol": "UGL",
+      "side": "SELL",
+      "size": 200.0,
+      "price": 51.3,
+      "trade_time": "2026-08-13T14:15:13Z"
+    },
+    {
+      "symbol": "SOXL",
+      "side": "BUY",
+      "size": 25.0,
+      "price": 149.47,
+      "trade_time": "2026-08-13T14:10:51Z"
+    },
+    {
+      "symbol": "SOXL",
+      "side": "BUY",
+      "size": 25.0,
+      "price": 149.4696,
+      "trade_time": "2026-08-13T14:10:51Z"
+    },
+    {
+      "symbol": "UGL",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 51.285,
+      "trade_time": "2026-08-13T14:08:54Z"
+    },
+    {
+      "symbol": "GLD",
+      "side": "BUY",
+      "size": 1.0,
+      "price": 3.69,
+      "trade_time": "2026-08-13T14:08:24Z"
+    },
+    {
+      "symbol": "SOXL",
+      "side": "BUY",
+      "size": 50.0,
+      "price": 148.5,
+      "trade_time": "2026-08-13T14:07:39Z"
+    },
+    {
+      "symbol": "IAU",
+      "side": "SELL",
+      "size": 0.8,
+      "price": 82.27,
+      "trade_time": "2026-08-13T14:06:13Z"
+    },
+    {
+      "symbol": "NBIS",
+      "side": "BUY",
+      "size": 2.0,
+      "price": 268.0,
+      "trade_time": "2026-08-13T14:04:33Z"
+    },
+    {
+      "symbol": "NOK",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 10.585,
+      "trade_time": "2026-08-13T14:02:36Z"
+    },
+    {
+      "symbol": "GEV",
+      "side": "BUY",
+      "size": 0.4,
+      "price": 1023.35,
+      "trade_time": "2026-08-13T13:58:58Z"
+    },
+    {
+      "symbol": "GDXU",
+      "side": "SELL",
+      "size": 40.0,
+      "price": 126.5,
+      "trade_time": "2026-08-13T13:57:16Z"
+    },
+    {
+      "symbol": "GDXU",
+      "side": "BUY",
+      "size": 30.0,
+      "price": 126.535,
+      "trade_time": "2026-08-13T13:53:54Z"
+    },
+    {
+      "symbol": "GDXU",
+      "side": "SELL",
+      "size": 27.0,
+      "price": 126.095,
+      "trade_time": "2026-08-13T13:52:02Z"
+    },
+    {
+      "symbol": "SOXL",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 142.0,
+      "trade_time": "2026-08-13T13:30:04Z"
+    },
+    {
+      "symbol": "SPCX",
+      "side": "BUY",
+      "size": 2.0,
+      "price": 144.0,
+      "trade_time": "2026-08-13T13:24:07Z"
+    },
+    {
+      "symbol": "NBIS",
+      "side": "BUY",
+      "size": 2.0,
+      "price": 251.69,
+      "trade_time": "2026-08-13T13:02:31Z"
+    },
+    {
+      "symbol": "GDXU",
+      "side": "BUY",
+      "size": 3.0,
+      "price": 130.3,
+      "trade_time": "2026-08-13T12:53:30Z"
+    },
+    {
+      "symbol": "GDXU",
+      "side": "BUY",
+      "size": 1.0,
+      "price": 130.3,
+      "trade_time": "2026-08-13T12:51:40Z"
+    },
+    {
+      "symbol": "GEV",
+      "side": "BUY",
+      "size": 0.5,
+      "price": 1035.8911,
+      "trade_time": "2026-08-12T19:22:50Z"
+    },
+    {
+      "symbol": "GLW",
+      "side": "BUY",
+      "size": 2.0,
+      "price": 167.0,
+      "trade_time": "2026-08-12T17:09:27Z"
+    },
+    {
+      "symbol": "CRWD",
+      "side": "BUY",
+      "size": 1.0,
+      "price": 219.0,
+      "trade_time": "2026-08-12T17:00:38Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "SELL",
+      "size": 50.0,
+      "price": 35.0,
+      "trade_time": "2026-08-12T16:52:42Z"
+    },
+    {
+      "symbol": "GDXU",
+      "side": "BUY",
+      "size": 3.0,
+      "price": 133.5,
+      "trade_time": "2026-08-12T16:51:15Z"
+    },
+    {
+      "symbol": "NBIS",
+      "side": "BUY",
+      "size": 4.0,
+      "price": 246.5,
+      "trade_time": "2026-08-12T16:50:47Z"
+    },
+    {
+      "symbol": "BE",
+      "side": "BUY",
+      "size": 2.0,
+      "price": 237.5,
+      "trade_time": "2026-08-12T16:44:52Z"
+    },
+    {
+      "symbol": "GDXU",
+      "side": "BUY",
+      "size": 5.0,
+      "price": 135.0,
+      "trade_time": "2026-08-12T16:43:52Z"
+    },
+    {
+      "symbol": "SPCX",
+      "side": "BUY",
+      "size": 10.0,
+      "price": 142.0,
+      "trade_time": "2026-08-12T16:38:56Z"
+    },
+    {
+      "symbol": "AVGX",
+      "side": "SELL",
+      "size": 60.0,
+      "price": 55.6,
+      "trade_time": "2026-08-12T16:37:59Z"
+    },
+    {
+      "symbol": "AAOI",
+      "side": "SELL",
+      "size": 9.0,
+      "price": 139.4,
+      "trade_time": "2026-08-12T16:28:16Z"
+    },
+    {
+      "symbol": "NBIS",
+      "side": "BUY",
+      "size": 5.0,
+      "price": 247.0,
+      "trade_time": "2026-08-12T16:27:20Z"
+    },
+    {
+      "symbol": "AVGX",
+      "side": "BUY",
+      "size": 15.0,
+      "price": 56.0,
+      "trade_time": "2026-08-12T14:52:22Z"
+    },
+    {
+      "symbol": "AVGO",
+      "side": "BUY",
+      "size": 0.2,
+      "price": 421.93,
+      "trade_time": "2026-08-12T14:47:54Z"
+    },
+    {
+      "symbol": "AVGO",
+      "side": "BUY",
+      "size": 1.0,
+      "price": 422.0,
+      "trade_time": "2026-08-12T14:47:48Z"
+    },
+    {
+      "symbol": "REMX",
+      "side": "SELL",
+      "size": 0.192,
+      "price": 77.44,
+      "trade_time": "2026-08-12T14:47:27Z"
+    },
+    {
+      "symbol": "SOXL",
+      "side": "SELL",
+      "size": 50.0,
+      "price": 145.18,
+      "trade_time": "2026-08-12T14:39:49Z"
+    },
+    {
+      "symbol": "MRVL",
+      "side": "BUY",
+      "size": 0.1,
+      "price": 222.46,
+      "trade_time": "2026-08-12T14:38:55Z"
+    },
+    {
+      "symbol": "GDXU",
+      "side": "BUY",
+      "size": 5.0,
+      "price": 138.0,
+      "trade_time": "2026-08-12T14:38:04Z"
+    },
+    {
+      "symbol": "GEV",
+      "side": "BUY",
+      "size": 0.4,
+      "price": 1034.36,
+      "trade_time": "2026-08-12T14:31:13Z"
+    },
+    {
+      "symbol": "GEV",
+      "side": "BUY",
+      "size": 0.5,
+      "price": 1036.95,
+      "trade_time": "2026-08-12T14:29:59Z"
+    },
+    {
+      "symbol": "GDXU",
+      "side": "BUY",
+      "size": 10.0,
+      "price": 138.8,
+      "trade_time": "2026-08-12T14:26:14Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "SELL",
+      "size": 250.0,
+      "price": 30.33,
+      "trade_time": "2026-08-12T14:16:24Z"
+    },
+    {
+      "symbol": "SOXL",
+      "side": "SELL",
+      "size": 50.0,
+      "price": 146.0,
+      "trade_time": "2026-08-12T14:10:00Z"
+    },
+    {
+      "symbol": "TQQQ",
+      "side": "SELL",
+      "size": 100.0,
+      "price": 75.035,
+      "trade_time": "2026-08-12T14:07:22Z"
+    },
+    {
+      "symbol": "MAGX",
+      "side": "SELL",
+      "size": 50.0,
+      "price": 57.2,
+      "trade_time": "2026-08-12T13:24:00Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "BUY",
+      "size": 150.0,
+      "price": 31.0,
+      "trade_time": "2026-08-12T07:10:09Z"
+    },
+    {
+      "symbol": "SOXL",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 136.0,
+      "trade_time": "2026-08-12T03:53:10Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "BUY",
+      "size": 28.0,
+      "price": 30.0,
+      "trade_time": "2026-08-12T03:15:30Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "BUY",
+      "size": 172.0,
+      "price": 30.0,
+      "trade_time": "2026-08-12T03:15:26Z"
+    },
     {
       "symbol": "GDXU",
       "side": "BUY",
@@ -476,14 +1008,14 @@
     {
       "symbol": "MNST",
       "side": "SELL",
-      "size": 10.0,
+      "size": 70.0,
       "price": 92.0,
       "trade_time": "2026-08-07T13:31:48Z"
     },
     {
       "symbol": "MNST",
       "side": "SELL",
-      "size": 70.0,
+      "size": 10.0,
       "price": 92.0,
       "trade_time": "2026-08-07T13:31:48Z"
     },
