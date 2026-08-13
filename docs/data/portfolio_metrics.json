@@ -8,7 +8,7 @@
   },
   "risk_free": {
     "mode": "tbill_3m",
-    "annual_rate": 0.03685,
+    "annual_rate": 0.037319,
     "fallback_used": false
   },
   "cashflow_adjusted": false,
@@ -18,28 +18,28 @@
     "cagr": -0.8183,
     "max_drawdown": -0.3614,
     "sharpe": {
-      "value": -2.4808,
+      "value": -2.4816,
       "se": 2.2816,
       "ci95": [
-        -6.9527,
-        1.9911
+        -6.9535,
+        1.9904
       ]
     },
-    "sortino": -3.0379
+    "sortino": -3.0387
   },
   "benchmarks": {
     "SPY": {
-      "sharpe": 0.6309,
+      "sharpe": 0.6279,
       "ann_return": 0.1332,
       "ann_vol": 0.1527
     },
     "SOXX": {
-      "sharpe": -0.4374,
+      "sharpe": -0.438,
       "ann_return": -0.2734,
       "ann_vol": 0.7094
     },
     "QQQ": {
-      "sharpe": -0.3943,
+      "sharpe": -0.3959,
       "ann_return": -0.0771,
       "ann_vol": 0.2889
     }
@@ -56,7 +56,7 @@
   "treynor": {
     "benchmark": "SPY",
     "beta": 2.1967,
-    "value": -0.7322,
+    "value": -0.7324,
     "warning": "組合未充分分散，β 未涵蓋特異風險，此值偏樂觀，僅供參考"
   },
   "rolling_sharpe": {
