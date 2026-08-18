@@ -1,45 +1,45 @@
 {
-  "as_of": "2026-08-14",
+  "as_of": "2026-08-17",
   "lookback": {
     "start": "2026-06-04",
-    "end": "2026-08-14",
-    "n_days": 51,
-    "years": 0.2024
+    "end": "2026-08-17",
+    "n_days": 52,
+    "years": 0.2063
   },
   "risk_free": {
     "mode": "tbill_3m",
-    "annual_rate": 0.036855,
+    "annual_rate": 0.037281,
     "fallback_used": false
   },
   "cashflow_adjusted": false,
   "portfolio": {
-    "ann_return": -1.5153,
-    "ann_vol": 0.6101,
-    "cagr": -0.8184,
+    "ann_return": -1.3049,
+    "ann_vol": 0.6116,
+    "cagr": -0.7757,
     "max_drawdown": -0.3614,
     "sharpe": {
-      "value": -2.5442,
-      "se": 2.2371,
+      "value": -2.1944,
+      "se": 2.2119,
       "ci95": [
-        -6.9289,
-        1.8406
+        -6.5298,
+        2.1409
       ]
     },
-    "sortino": -3.1108
+    "sortino": -2.716
   },
   "benchmarks": {
     "SPY": {
-      "sharpe": 0.7757,
+      "sharpe": 0.7728,
       "ann_return": 0.1535,
       "ann_vol": 0.1504
     },
     "SOXX": {
-      "sharpe": -0.3789,
+      "sharpe": -0.3795,
       "ann_return": -0.2264,
       "ann_vol": 0.6947
     },
     "QQQ": {
-      "sharpe": -0.2052,
+      "sharpe": -0.2067,
       "ann_return": -0.0215,
       "ann_vol": 0.2841
     }
@@ -56,7 +56,7 @@
   "treynor": {
     "benchmark": "SPY",
     "beta": 2.1618,
-    "value": -0.7466,
+    "value": -0.7468,
     "warning": "組合未充分分散，β 未涵蓋特異風險，此值偏樂觀，僅供參考"
   },
   "rolling_sharpe": {
@@ -112,9 +112,11 @@
       "2026-08-11",
       "2026-08-12",
       "2026-08-13",
-      "2026-08-14"
+      "2026-08-14",
+      "2026-08-17"
     ],
     "portfolio": [
+      null,
       null,
       null,
       null,
@@ -218,9 +220,11 @@
       null,
       null,
       null,
+      null,
       null
     ],
     "SOXX": [
+      null,
       null,
       null,
       null,
