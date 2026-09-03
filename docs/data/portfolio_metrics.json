@@ -8,7 +8,7 @@
   },
   "risk_free": {
     "mode": "tbill_3m",
-    "annual_rate": 0.036907,
+    "annual_rate": 0.036913,
     "fallback_used": false
   },
   "cashflow_adjusted": false,
