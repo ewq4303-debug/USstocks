@@ -1,10 +1,10 @@
 {
-  "as_of": "2026-09-02",
+  "as_of": "2026-09-03",
   "lookback": {
     "start": "2026-06-04",
-    "end": "2026-09-02",
-    "n_days": 64,
-    "years": 0.254
+    "end": "2026-09-03",
+    "n_days": 65,
+    "years": 0.2579
   },
   "risk_free": {
     "mode": "tbill_3m",
@@ -13,19 +13,19 @@
   },
   "cashflow_adjusted": false,
   "portfolio": {
-    "ann_return": -2.7432,
-    "ann_vol": 1.2317,
-    "cagr": -0.973,
+    "ann_return": -2.649,
+    "ann_vol": 1.2229,
+    "cagr": -0.9699,
     "max_drawdown": -0.6556,
     "sharpe": {
-      "value": -2.2572,
-      "se": 1.9943,
+      "value": -2.1963,
+      "se": 1.9784,
       "ci95": [
-        -6.1661,
-        1.6516
+        -6.074,
+        1.6813
       ]
     },
-    "sortino": -2.7198
+    "sortino": -2.6481
   },
   "benchmarks": {
     "SPY": {
@@ -125,9 +125,11 @@
       "2026-08-28",
       "2026-08-31",
       "2026-09-01",
-      "2026-09-02"
+      "2026-09-02",
+      "2026-09-03"
     ],
     "portfolio": [
+      null,
       null,
       null,
       null,
@@ -257,9 +259,11 @@
       null,
       null,
       null,
+      null,
       null
     ],
     "SOXX": [
+      null,
       null,
       null,
       null,
