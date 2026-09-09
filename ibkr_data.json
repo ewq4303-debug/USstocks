@@ -1,68 +1,161 @@
 {
-  "fetched_at": "2026-09-08 17:04 ET",
+  "fetched_at": "2026-09-09 17:04 ET",
   "summary": {
     "currency": "USD",
-    "net_liquidation": 37336.54,
-    "gross_position_value": 41863.43,
-    "total_cash_value": -4549.35,
-    "available_funds": 812.3,
-    "buying_power": 3249.2,
+    "net_liquidation": 35786.09,
+    "gross_position_value": 40507.85,
+    "total_cash_value": -4744.95,
+    "available_funds": 6487.75,
+    "buying_power": 25951.01,
     "dividends": 3.92,
-    "leverage": "1.12"
+    "leverage": "1.13"
   },
   "positions": [
     {
       "symbol": "MRNX",
-      "position": 448.0,
-      "average_price": 89.72699,
-      "market_price": 78.900002,
-      "market_value": 35347.200694,
-      "unrealized_pnl": -4850.490606,
-      "daily_pnl": -2351.999306,
+      "position": 400.0,
+      "average_price": 86.122743,
+      "market_price": 72.800003,
+      "market_value": 29120.00122,
+      "unrealized_pnl": -5329.095895,
+      "daily_pnl": -2061.14158,
       "currency": "USD"
     },
     {
-      "symbol": "BE",
-      "position": 7.0,
-      "average_price": 227.514286,
-      "market_price": 276.269989,
-      "market_value": 1933.889923,
-      "unrealized_pnl": 341.289923,
-      "daily_pnl": 163.799923,
+      "symbol": "SOXS",
+      "position": 100.0,
+      "average_price": 43.310003,
+      "market_price": 43.119999,
+      "market_value": 4311.999895,
+      "unrealized_pnl": -19.000405,
+      "daily_pnl": -19.000405,
       "currency": "USD"
     },
     {
-      "symbol": "AXTX",
+      "symbol": "SQQQ",
       "position": 50.0,
-      "average_price": 7.520004,
-      "market_price": 7.42,
-      "market_value": 371.000005,
-      "unrealized_pnl": -5.000195,
-      "daily_pnl": 69.000005,
+      "average_price": 38.620004,
+      "market_price": 38.630001,
+      "market_value": 1931.500053,
+      "unrealized_pnl": 0.499852,
+      "daily_pnl": 0.499852,
       "currency": "USD"
     },
     {
       "symbol": "NET",
       "position": 1.0,
-      "average_price": 240.155169,
-      "market_price": 285.140015,
-      "market_value": 285.140015,
-      "unrealized_pnl": 44.984846,
-      "daily_pnl": 15.515115,
+      "average_price": 284.5,
+      "market_price": 314.440002,
+      "market_value": 314.440002,
+      "unrealized_pnl": 29.940002,
+      "daily_pnl": 30.140002,
       "currency": "USD"
     },
     {
       "symbol": "CRWD",
       "position": 0.3,
-      "average_price": 211.411982,
-      "market_price": 209.830002,
-      "market_value": 62.949001,
-      "unrealized_pnl": -0.474594,
-      "daily_pnl": -33.256699,
+      "average_price": 220.0,
+      "market_price": 207.720703,
+      "market_value": 62.316211,
+      "unrealized_pnl": -3.683789,
+      "daily_pnl": -0.689789,
+      "currency": "USD"
+    },
+    {
+      "symbol": "AXTX",
+      "position": 0.0,
+      "average_price": 0.0,
+      "market_price": 7.4495,
+      "market_value": 0.0,
+      "unrealized_pnl": -2.1e-05,
+      "daily_pnl": 2.9822,
+      "currency": "USD"
+    },
+    {
+      "symbol": "BE",
+      "position": 0.0,
+      "average_price": 0.0,
+      "market_price": 268.399994,
+      "market_value": 0.0,
+      "unrealized_pnl": 7e-06,
+      "daily_pnl": -37.6506,
+      "currency": "USD"
+    },
+    {
+      "symbol": "SKUU",
+      "position": 0.0,
+      "average_price": 0.0,
+      "market_price": 33.580002,
+      "market_value": 0.0,
+      "unrealized_pnl": 8e-06,
+      "daily_pnl": -7.7086,
       "currency": "USD"
     }
   ],
   "trades": [
+    {
+      "symbol": "SQQQ",
+      "side": "BUY",
+      "size": 50.0,
+      "price": 38.6,
+      "trade_time": "2026-09-09T15:54:45Z"
+    },
+    {
+      "symbol": "SOXS",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 43.3,
+      "trade_time": "2026-09-09T15:48:21Z"
+    },
+    {
+      "symbol": "AXTX",
+      "side": "SELL",
+      "size": 50.0,
+      "price": 7.65,
+      "trade_time": "2026-09-09T15:25:12Z"
+    },
+    {
+      "symbol": "BE",
+      "side": "SELL",
+      "size": 7.0,
+      "price": 271.99,
+      "trade_time": "2026-09-09T15:25:00Z"
+    },
+    {
+      "symbol": "MRNX",
+      "side": "BUY",
+      "size": 40.0,
+      "price": 75.3,
+      "trade_time": "2026-09-09T15:16:51Z"
+    },
+    {
+      "symbol": "MRNX",
+      "side": "BUY",
+      "size": 60.0,
+      "price": 75.3,
+      "trade_time": "2026-09-09T15:16:51Z"
+    },
+    {
+      "symbol": "SKUU",
+      "side": "SELL",
+      "size": 10.0,
+      "price": 32.03,
+      "trade_time": "2026-09-09T15:11:53Z"
+    },
+    {
+      "symbol": "MRNX",
+      "side": "SELL",
+      "size": 148.0,
+      "price": 76.5,
+      "trade_time": "2026-09-09T15:07:47Z"
+    },
+    {
+      "symbol": "SKUU",
+      "side": "BUY",
+      "size": 10.0,
+      "price": 32.6,
+      "trade_time": "2026-09-09T14:53:10Z"
+    },
     {
       "symbol": "NET",
       "side": "SELL",
