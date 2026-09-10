@@ -1,98 +1,138 @@
 {
-  "fetched_at": "2026-09-09 17:04 ET",
+  "fetched_at": "2026-09-10 17:03 ET",
   "summary": {
     "currency": "USD",
-    "net_liquidation": 35786.09,
-    "gross_position_value": 40507.85,
-    "total_cash_value": -4744.95,
-    "available_funds": 6487.75,
-    "buying_power": 25951.01,
+    "net_liquidation": 35055.72,
+    "gross_position_value": 32010.35,
+    "total_cash_value": 3018.58,
+    "available_funds": 13805.77,
+    "buying_power": 55223.1,
     "dividends": 3.92,
-    "leverage": "1.13"
+    "leverage": "0.91"
   },
   "positions": [
     {
       "symbol": "MRNX",
-      "position": 400.0,
-      "average_price": 86.122743,
-      "market_price": 72.800003,
-      "market_value": 29120.00122,
-      "unrealized_pnl": -5329.095895,
-      "daily_pnl": -2061.14158,
+      "position": 250.0,
+      "average_price": 76.011903,
+      "market_price": 73.059998,
+      "market_value": 18264.999388,
+      "unrealized_pnl": -737.976446,
+      "daily_pnl": -125.332513,
       "currency": "USD"
     },
     {
       "symbol": "SOXS",
-      "position": 100.0,
-      "average_price": 43.310003,
-      "market_price": 43.119999,
-      "market_value": 4311.999895,
-      "unrealized_pnl": -19.000405,
-      "daily_pnl": -19.000405,
-      "currency": "USD"
-    },
-    {
-      "symbol": "SQQQ",
-      "position": 50.0,
-      "average_price": 38.620004,
-      "market_price": 38.630001,
-      "market_value": 1931.500053,
-      "unrealized_pnl": 0.499852,
-      "daily_pnl": 0.499852,
+      "position": 200.0,
+      "average_price": 44.740004,
+      "market_price": 46.599998,
+      "market_value": 9319.99969,
+      "unrealized_pnl": 371.99899,
+      "daily_pnl": 378.99929,
       "currency": "USD"
     },
     {
       "symbol": "NET",
       "position": 1.0,
       "average_price": 284.5,
-      "market_price": 314.440002,
-      "market_value": 314.440002,
-      "unrealized_pnl": 29.940002,
-      "daily_pnl": 30.140002,
+      "market_price": 311.927399,
+      "market_value": 311.927399,
+      "unrealized_pnl": 27.427399,
+      "daily_pnl": -2.252601,
       "currency": "USD"
     },
     {
       "symbol": "CRWD",
       "position": 0.3,
       "average_price": 220.0,
-      "market_price": 207.720703,
-      "market_value": 62.316211,
-      "unrealized_pnl": -3.683789,
-      "daily_pnl": -0.689789,
+      "market_price": 209.25,
+      "market_value": 62.775,
+      "unrealized_pnl": -3.225,
+      "daily_pnl": 0.435,
       "currency": "USD"
     },
     {
-      "symbol": "AXTX",
+      "symbol": "SQQQ",
       "position": 0.0,
       "average_price": 0.0,
-      "market_price": 7.4495,
+      "market_price": 39.779999,
       "market_value": 0.0,
-      "unrealized_pnl": -2.1e-05,
-      "daily_pnl": 2.9822,
-      "currency": "USD"
-    },
-    {
-      "symbol": "BE",
-      "position": 0.0,
-      "average_price": 0.0,
-      "market_price": 268.399994,
-      "market_value": 0.0,
-      "unrealized_pnl": 7e-06,
-      "daily_pnl": -37.6506,
-      "currency": "USD"
-    },
-    {
-      "symbol": "SKUU",
-      "position": 0.0,
-      "average_price": 0.0,
-      "market_price": 33.580002,
-      "market_value": 0.0,
-      "unrealized_pnl": 8e-06,
-      "daily_pnl": -7.7086,
+      "unrealized_pnl": 0.0,
+      "daily_pnl": 80.8976,
       "currency": "USD"
     }
   ],
   "trades": [
+    {
+      "symbol": "GLD",
+      "side": "BUY",
+      "size": 1.0,
+      "price": 3.05,
+      "trade_time": "2026-09-10T18:26:49Z"
+    },
+    {
+      "symbol": "SOXS",
+      "side": "BUY",
+      "size": 30.0,
+      "price": 45.8,
+      "trade_time": "2026-09-10T17:02:03Z"
+    },
+    {
+      "symbol": "MRNX",
+      "side": "BUY",
+      "size": 50.0,
+      "price": 70.0,
+      "trade_time": "2026-09-10T15:09:08Z"
+    },
+    {
+      "symbol": "SOXS",
+      "side": "BUY",
+      "size": 50.0,
+      "price": 46.0,
+      "trade_time": "2026-09-10T14:24:41Z"
+    },
+    {
+      "symbol": "SOXS",
+      "side": "BUY",
+      "size": 20.0,
+      "price": 47.0,
+      "trade_time": "2026-09-10T14:01:33Z"
+    },
+    {
+      "symbol": "MRNX",
+      "side": "SELL",
+      "size": 50.0,
+      "price": 72.2,
+      "trade_time": "2026-09-10T13:58:50Z"
+    },
+    {
+      "symbol": "SQQQ",
+      "side": "SELL",
+      "size": 100.0,
+      "price": 40.0,
+      "trade_time": "2026-09-10T13:58:23Z"
+    },
+    {
+      "symbol": "SQQQ",
+      "side": "BUY",
+      "size": 50.0,
+      "price": 39.7,
+      "trade_time": "2026-09-10T13:49:14Z"
+    },
+    {
+      "symbol": "MRNX",
+      "side": "SELL",
+      "size": 50.0,
+      "price": 71.36,
+      "trade_time": "2026-09-10T13:48:33Z"
+    },
+    {
+      "symbol": "MRNX",
+      "side": "SELL",
+      "size": 100.0,
+      "price": 70.0,
+      "trade_time": "2026-09-10T13:40:57Z"
+    },
     {
       "symbol": "SQQQ",
       "side": "BUY",
@@ -6476,76 +6516,6 @@
       "size": 15.0,
       "price": 57.8,
       "trade_time": "2026-06-12T12:07:02Z"
-    },
-    {
-      "symbol": "GOOGL",
-      "side": "BUY",
-      "size": 2.0,
-      "price": 360.0,
-      "trade_time": "2026-06-12T01:11:49Z"
-    },
-    {
-      "symbol": "VSH",
-      "side": "BUY",
-      "size": 13.0,
-      "price": 58.3,
-      "trade_time": "2026-06-11T13:59:55Z"
-    },
-    {
-      "symbol": "SOXX",
-      "side": "SELL",
-      "size": 10.0,
-      "price": 556.0,
-      "trade_time": "2026-06-11T13:28:07Z"
-    },
-    {
-      "symbol": "SOXX",
-      "side": "SELL",
-      "size": 10.0,
-      "price": 555.0,
-      "trade_time": "2026-06-11T13:10:42Z"
-    },
-    {
-      "symbol": "SOXX",
-      "side": "SELL",
-      "size": 5.0,
-      "price": 555.0,
-      "trade_time": "2026-06-11T13:10:42Z"
-    },
-    {
-      "symbol": "SOXX",
-      "side": "SELL",
-      "size": 10.0,
-      "price": 558.0,
-      "trade_time": "2026-06-11T11:48:41Z"
-    },
-    {
-      "symbol": "GEV",
-      "side": "SELL",
-      "size": 1.0,
-      "price": 891.5,
-      "trade_time": "2026-06-11T11:47:04Z"
-    },
-    {
-      "symbol": "VRT",
-      "side": "SELL",
-      "size": 2.0,
-      "price": 289.58,
-      "trade_time": "2026-06-11T11:44:20Z"
-    },
-    {
-      "symbol": "AVGO",
-      "side": "SELL",
-      "size": 2.0,
-      "price": 375.5,
-      "trade_time": "2026-06-11T11:43:13Z"
-    },
-    {
-      "symbol": "REMX",
-      "side": "SELL",
-      "size": 3.0,
-      "price": 88.2,
-      "trade_time": "2026-06-11T11:42:27Z"
     }
   ]
 }
