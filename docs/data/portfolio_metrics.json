@@ -1,62 +1,62 @@
 {
-  "as_of": "2026-09-08",
+  "as_of": "2026-09-09",
   "lookback": {
     "start": "2026-06-04",
-    "end": "2026-09-08",
-    "n_days": 68,
-    "years": 0.2698
+    "end": "2026-09-09",
+    "n_days": 69,
+    "years": 0.2738
   },
   "risk_free": {
     "mode": "tbill_3m",
-    "annual_rate": 0.036941,
+    "annual_rate": 0.036956,
     "fallback_used": false
   },
   "cashflow_adjusted": false,
   "portfolio": {
-    "ann_return": -3.0402,
-    "ann_vol": 1.2066,
-    "cagr": -0.9793,
-    "max_drawdown": -0.6657,
+    "ann_return": -3.1484,
+    "ann_vol": 1.199,
+    "cagr": -0.9812,
+    "max_drawdown": -0.6796,
     "sharpe": {
-      "value": -2.5503,
-      "se": 1.9374,
+      "value": -2.6566,
+      "se": 1.9244,
       "ci95": [
-        -6.3477,
-        1.2471
+        -6.4285,
+        1.1152
       ]
     },
-    "sortino": -3.0462
+    "sortino": -3.1663
   },
   "benchmarks": {
     "SPY": {
-      "sharpe": 0.2002,
-      "ann_return": 0.0644,
-      "ann_vol": 0.1372
+      "sharpe": 0.064,
+      "ann_return": 0.0457,
+      "ann_vol": 0.1364
     },
     "SOXX": {
-      "sharpe": -0.5609,
-      "ann_return": -0.3141,
-      "ann_vol": 0.6258
+      "sharpe": -0.5156,
+      "ann_return": -0.2833,
+      "ann_vol": 0.6211
     },
     "QQQ": {
-      "sharpe": -0.4685,
-      "ann_return": -0.0822,
-      "ann_vol": 0.2542
+      "sharpe": -0.5104,
+      "ann_return": -0.0918,
+      "ann_vol": 0.2523
     }
   },
   "information_ratio": {
     "benchmark": "SOXX",
-    "ir": -2.4477,
-    "t_stat": -1.2431,
+    "ir": -2.5837,
+    "t_stat": -1.3223,
     "significant": false,
-    "ann_active_return": -2.8665,
-    "tracking_error": 1.1711,
-    "note": "IR=-2.45、樣本 0.3 年 → t≈-1.24，尚在雜訊範圍"
+    "ann_active_return": -3.0082,
+    "tracking_error": 1.1643,
+    "note": "IR=-2.58、樣本 0.3 年 → t≈-1.32，尚在雜訊範圍"
   },
   "treynor": {
     "benchmark": "SPY",
-    "beta": 3.064,
-    "value": -1.0501,
+    "beta": 3.0781,
+    "value": -1.0813,
     "warning": "組合未充分分散，β 未涵蓋特異風險，此值偏樂觀，僅供參考"
   },
   "rolling_sharpe": {
@@ -129,9 +129,11 @@
       "2026-09-03",
       "2026-09-04",
       "2026-09-07",
-      "2026-09-08"
+      "2026-09-08",
+      "2026-09-09"
     ],
     "portfolio": [
+      null,
       null,
       null,
       null,
@@ -269,9 +271,11 @@
       null,
       null,
       null,
+      null,
       null
     ],
     "SOXX": [
+      null,
       null,
       null,
       null,
