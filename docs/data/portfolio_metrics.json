@@ -29,34 +29,34 @@
   },
   "benchmarks": {
     "SPY": {
-      "sharpe": 0.4579,
-      "ann_return": 0.0993,
-      "ann_vol": 0.1357
+      "sharpe": 0.4473,
+      "ann_return": 0.0975,
+      "ann_vol": 0.1347
     },
     "SOXX": {
-      "sharpe": -0.1673,
-      "ann_return": -0.0651,
-      "ann_vol": 0.6112
+      "sharpe": -0.0339,
+      "ann_return": 0.0165,
+      "ann_vol": 0.6087
     },
     "QQQ": {
-      "sharpe": 0.0181,
-      "ann_return": 0.0417,
-      "ann_vol": 0.2485
+      "sharpe": 0.1257,
+      "ann_return": 0.0683,
+      "ann_vol": 0.2472
     }
   },
   "information_ratio": {
     "benchmark": "SOXX",
-    "ir": -1.725,
-    "t_stat": -0.9347,
+    "ir": -1.6268,
+    "t_stat": -0.8875,
     "significant": false,
-    "ann_active_return": -1.9579,
-    "tracking_error": 1.135,
-    "note": "IR=-1.73、樣本 0.3 年 → t≈-0.93，尚在雜訊範圍"
+    "ann_active_return": -1.8371,
+    "tracking_error": 1.1293,
+    "note": "IR=-1.63、樣本 0.3 年 → t≈-0.89，尚在雜訊範圍"
   },
   "treynor": {
     "benchmark": "SPY",
-    "beta": 3.419,
-    "value": -0.6026,
+    "beta": 3.4127,
+    "value": -0.5444,
     "warning": "組合未充分分散，β 未涵蓋特異風險，此值偏樂觀，僅供參考"
   },
   "rolling_sharpe": {
