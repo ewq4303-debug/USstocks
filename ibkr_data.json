@@ -1,88 +1,174 @@
 {
-  "fetched_at": "2026-10-02 17:04 ET",
+  "fetched_at": "2026-10-05 17:03 ET",
   "summary": {
     "currency": "USD",
-    "net_liquidation": 39917.3,
-    "gross_position_value": 42824.17,
-    "total_cash_value": -2996.5,
-    "available_funds": 13038.79,
-    "buying_power": 52155.15,
+    "net_liquidation": 40973.6,
+    "gross_position_value": 57597.62,
+    "total_cash_value": -16760.82,
+    "available_funds": 10434.32,
+    "buying_power": 41737.29,
     "dividends": 0.0,
-    "leverage": "1.07"
+    "leverage": "1.41"
   },
   "positions": [
     {
+      "symbol": "MRNX",
+      "position": 100.0,
+      "average_price": 145.358504,
+      "market_price": 154.649994,
+      "market_value": 15464.99939,
+      "unrealized_pnl": 929.14899,
+      "daily_pnl": 1176.49919,
+      "currency": "USD"
+    },
+    {
       "symbol": "SOXL",
-      "position": 120.0,
-      "average_price": 167.91667,
-      "market_price": 163.660004,
-      "market_value": 19639.200438,
-      "unrealized_pnl": -510.799962,
-      "daily_pnl": -510.799962,
+      "position": 90.0,
+      "average_price": 167.916671,
+      "market_price": 164.839905,
+      "market_value": 14835.591432,
+      "unrealized_pnl": -276.908915,
+      "daily_pnl": 61.290932,
+      "currency": "USD"
+    },
+    {
+      "symbol": "EWZ",
+      "position": 200.0,
+      "average_price": 43.135003,
+      "market_price": 42.959999,
+      "market_value": 8591.99982,
+      "unrealized_pnl": -35.00078,
+      "daily_pnl": -35.00078,
       "currency": "USD"
     },
     {
       "symbol": "AMDL",
       "position": 100.0,
       "average_price": 85.777943,
-      "market_price": 84.410004,
-      "market_value": 8441.000365,
-      "unrealized_pnl": -136.793915,
-      "daily_pnl": 28.806065,
-      "currency": "USD"
-    },
-    {
-      "symbol": "MRNX",
-      "position": 50.0,
-      "average_price": 146.334253,
-      "market_price": 134.740005,
-      "market_value": 6737.000275,
-      "unrealized_pnl": -579.712375,
-      "daily_pnl": -712.651025,
+      "market_price": 84.0,
+      "market_value": 8400.0,
+      "unrealized_pnl": -177.7943,
+      "daily_pnl": -54.0,
       "currency": "USD"
     },
     {
       "symbol": "INTW",
-      "position": 150.0,
-      "average_price": 34.213003,
-      "market_price": 30.860001,
-      "market_value": 4629.00009,
-      "unrealized_pnl": -502.95041,
-      "daily_pnl": -234.85021,
+      "position": 160.0,
+      "average_price": 33.930941,
+      "market_price": 29.27,
+      "market_value": 4683.200072,
+      "unrealized_pnl": -745.750428,
+      "daily_pnl": -235.299928,
+      "currency": "USD"
+    },
+    {
+      "symbol": "SPCX",
+      "position": 10.0,
+      "average_price": 167.1,
+      "market_price": 171.160004,
+      "market_value": 1711.600036,
+      "unrealized_pnl": 40.600037,
+      "daily_pnl": 40.600037,
       "currency": "USD"
     },
     {
       "symbol": "NET",
       "position": 4.0,
       "average_price": 329.931575,
-      "market_price": 348.98999,
-      "market_value": 1395.959961,
-      "unrealized_pnl": 76.233661,
-      "daily_pnl": -10.290039,
+      "market_price": 360.5,
+      "market_value": 1442.0,
+      "unrealized_pnl": 122.2737,
+      "daily_pnl": 45.72,
       "currency": "USD"
     },
     {
-      "symbol": "GLND",
-      "position": 300.0,
-      "average_price": 4.796367,
-      "market_price": 3.77,
-      "market_value": 1131.0,
-      "unrealized_pnl": -307.909999,
-      "daily_pnl": -393.0708,
+      "symbol": "LITE",
+      "position": 1.0,
+      "average_price": 1088.0,
+      "market_price": 1092.650024,
+      "market_value": 1092.650024,
+      "unrealized_pnl": 4.650024,
+      "daily_pnl": 4.650024,
       "currency": "USD"
     },
     {
       "symbol": "CRWD",
       "position": 3.0,
       "average_price": 251.540333,
-      "market_price": 270.115509,
-      "market_value": 810.346527,
-      "unrealized_pnl": 55.725527,
-      "daily_pnl": 8.661527,
+      "market_price": 272.519989,
+      "market_value": 817.559967,
+      "unrealized_pnl": 62.938967,
+      "daily_pnl": 7.439967,
+      "currency": "USD"
+    },
+    {
+      "symbol": "GLND",
+      "position": 150.0,
+      "average_price": 4.773336,
+      "market_price": 3.7003,
+      "market_value": 555.045,
+      "unrealized_pnl": -160.955412,
+      "daily_pnl": -2.467,
       "currency": "USD"
     }
   ],
   "trades": [
+    {
+      "symbol": "EWZ",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 43.15,
+      "trade_time": "2026-10-05T19:29:06Z"
+    },
+    {
+      "symbol": "SPCX",
+      "side": "BUY",
+      "size": 10.0,
+      "price": 167.0,
+      "trade_time": "2026-10-05T18:31:18Z"
+    },
+    {
+      "symbol": "MRNX",
+      "side": "BUY",
+      "size": 50.0,
+      "price": 150.0,
+      "trade_time": "2026-10-05T17:05:43Z"
+    },
+    {
+      "symbol": "SOXL",
+      "side": "SELL",
+      "size": 30.0,
+      "price": 162.4,
+      "trade_time": "2026-10-05T17:04:27Z"
+    },
+    {
+      "symbol": "INTW",
+      "side": "BUY",
+      "size": 10.0,
+      "price": 29.6,
+      "trade_time": "2026-10-05T17:00:16Z"
+    },
+    {
+      "symbol": "LITE",
+      "side": "BUY",
+      "size": 1.0,
+      "price": 1087.0,
+      "trade_time": "2026-10-05T16:59:24Z"
+    },
+    {
+      "symbol": "EWZ",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 43.1,
+      "trade_time": "2026-10-05T16:58:22Z"
+    },
+    {
+      "symbol": "GLND",
+      "side": "SELL",
+      "size": 150.0,
+      "price": 3.75,
+      "trade_time": "2026-10-05T16:49:18Z"
+    },
     {
       "symbol": "SOXL",
       "side": "BUY",
@@ -261,15 +347,15 @@
     {
       "symbol": "GLND",
       "side": "SELL",
-      "size": 700.0,
-      "price": 5.152,
+      "size": 200.0,
+      "price": 5.155,
       "trade_time": "2026-09-28T13:54:19Z"
     },
     {
       "symbol": "GLND",
       "side": "SELL",
-      "size": 200.0,
-      "price": 5.155,
+      "size": 700.0,
+      "price": 5.152,
       "trade_time": "2026-09-28T13:54:19Z"
     },
     {
@@ -7320,48 +7406,6 @@
       "size": 15.0,
       "price": 116.41,
       "trade_time": "2026-07-07T09:39:02Z"
-    },
-    {
-      "symbol": "TSM",
-      "side": "BUY",
-      "size": 1.0,
-      "price": 457.8,
-      "trade_time": "2026-07-06T15:30:00Z"
-    },
-    {
-      "symbol": "XLV",
-      "side": "BUY",
-      "size": 2.0,
-      "price": 161.4,
-      "trade_time": "2026-07-06T15:13:38Z"
-    },
-    {
-      "symbol": "INTC",
-      "side": "BUY",
-      "size": 5.0,
-      "price": 126.0,
-      "trade_time": "2026-07-06T14:55:57Z"
-    },
-    {
-      "symbol": "TSM",
-      "side": "BUY",
-      "size": 1.0,
-      "price": 458.0,
-      "trade_time": "2026-07-06T14:27:44Z"
-    },
-    {
-      "symbol": "MNST",
-      "side": "BUY",
-      "size": 5.0,
-      "price": 96.4,
-      "trade_time": "2026-07-06T14:20:28Z"
-    },
-    {
-      "symbol": "AMD",
-      "side": "BUY",
-      "size": 2.0,
-      "price": 568.705,
-      "trade_time": "2026-07-06T14:19:28Z"
     }
   ]
 }
