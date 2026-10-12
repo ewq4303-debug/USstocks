@@ -1,128 +1,133 @@
 {
-  "fetched_at": "2026-10-09 17:03 ET",
+  "fetched_at": "2026-10-12 17:03 ET",
   "summary": {
     "currency": "USD",
-    "net_liquidation": 40397.42,
-    "gross_position_value": 20483.69,
-    "total_cash_value": 19876.89,
-    "available_funds": 34976.73,
-    "buying_power": 139906.92,
+    "net_liquidation": 40204.19,
+    "gross_position_value": 22947.56,
+    "total_cash_value": 17218.22,
+    "available_funds": 33483.72,
+    "buying_power": 133934.86,
     "dividends": 0.0,
-    "leverage": "0.51"
+    "leverage": "0.57"
   },
   "positions": [
     {
       "symbol": "EWZ",
       "position": 300.0,
       "average_price": 43.260003,
-      "market_price": 43.48,
-      "market_value": 13043.999865,
-      "unrealized_pnl": 65.998965,
-      "daily_pnl": 174.999565,
+      "market_price": 43.662601,
+      "market_value": 13098.780435,
+      "unrealized_pnl": 120.779535,
+      "daily_pnl": 36.780435,
       "currency": "USD"
     },
     {
       "symbol": "SPCX",
       "position": 17.0,
-      "average_price": 169.029412,
-      "market_price": 162.721405,
-      "market_value": 2766.263886,
-      "unrealized_pnl": -107.236114,
-      "daily_pnl": 33.643886,
+      "average_price": 169.029418,
+      "market_price": 163.649994,
+      "market_value": 2782.049896,
+      "unrealized_pnl": -91.450204,
+      "daily_pnl": 18.359896,
+      "currency": "USD"
+    },
+    {
+      "symbol": "MRNX",
+      "position": 15.0,
+      "average_price": 170.333333,
+      "market_price": 164.960007,
+      "market_value": 2474.400101,
+      "unrealized_pnl": -80.5999,
+      "daily_pnl": -80.5999,
       "currency": "USD"
     },
     {
       "symbol": "NET",
       "position": 4.0,
       "average_price": 329.931575,
-      "market_price": 360.929993,
-      "market_value": 1443.719971,
-      "unrealized_pnl": 123.993671,
-      "daily_pnl": 76.159971,
+      "market_price": 350.700012,
+      "market_value": 1402.800049,
+      "unrealized_pnl": 83.073749,
+      "daily_pnl": -40.919951,
       "currency": "USD"
     },
     {
       "symbol": "LITE",
-      "position": 1.0,
-      "average_price": 1088.0,
-      "market_price": 1104.019653,
-      "market_value": 1104.019653,
-      "unrealized_pnl": 16.019653,
-      "daily_pnl": 55.419653,
+      "position": 1.1,
+      "average_price": 1083.327273,
+      "market_price": 996.5,
+      "market_value": 1096.15,
+      "unrealized_pnl": -95.51,
+      "daily_pnl": -110.86498,
       "currency": "USD"
     },
     {
       "symbol": "PLTR",
       "position": 5.0,
-      "average_price": 201.200003,
-      "market_price": 208.389999,
-      "market_value": 1041.949997,
-      "unrealized_pnl": 35.949982,
-      "daily_pnl": 48.049997,
+      "average_price": 201.2,
+      "market_price": 208.705399,
+      "market_value": 1043.526993,
+      "unrealized_pnl": 37.526993,
+      "daily_pnl": -1.723007,
       "currency": "USD"
     },
     {
       "symbol": "CRWD",
       "position": 3.0,
       "average_price": 251.540333,
-      "market_price": 275.019989,
-      "market_value": 825.059967,
-      "unrealized_pnl": 70.438967,
-      "daily_pnl": 36.029967,
+      "market_price": 263.207886,
+      "market_value": 789.623657,
+      "unrealized_pnl": 35.002657,
+      "daily_pnl": -35.496343,
       "currency": "USD"
     },
     {
       "symbol": "ARKK",
       "position": 3.0,
       "average_price": 89.833333,
-      "market_price": 89.830002,
-      "market_value": 269.490006,
-      "unrealized_pnl": -0.009994,
-      "daily_pnl": -0.009994,
-      "currency": "USD"
-    },
-    {
-      "symbol": "AMDL",
-      "position": 0.0,
-      "average_price": 0.0,
-      "market_price": 77.400002,
-      "market_value": 0.0,
-      "unrealized_pnl": 3.4e-05,
-      "daily_pnl": -186.463,
-      "currency": "USD"
-    },
-    {
-      "symbol": "INTW",
-      "position": 0.0,
-      "average_price": 0.0,
-      "market_price": 23.5,
-      "market_value": 0.0,
-      "unrealized_pnl": 5e-06,
-      "daily_pnl": -44.4349,
-      "currency": "USD"
-    },
-    {
-      "symbol": "MRNA",
-      "position": 0.0,
-      "average_price": 0.0,
-      "market_price": 225.020004,
-      "market_value": 0.0,
-      "unrealized_pnl": -0.0,
-      "daily_pnl": -178.1878,
-      "currency": "USD"
-    },
-    {
-      "symbol": "MRNX",
-      "position": 0.0,
-      "average_price": 0.0,
-      "market_price": 184.646805,
-      "market_value": 0.0,
-      "unrealized_pnl": 7.4e-05,
-      "daily_pnl": 3143.1143,
+      "market_price": 88.800003,
+      "market_value": 266.400009,
+      "unrealized_pnl": -3.099991,
+      "daily_pnl": -2.459991,
       "currency": "USD"
     }
   ],
   "trades": [
+    {
+      "symbol": "MRNX",
+      "side": "BUY",
+      "size": 3.0,
+      "price": 163.0,
+      "trade_time": "2026-10-12T18:57:01Z"
+    },
+    {
+      "symbol": "MRNX",
+      "side": "BUY",
+      "size": 2.0,
+      "price": 166.0,
+      "trade_time": "2026-10-12T16:46:52Z"
+    },
+    {
+      "symbol": "MRNX",
+      "side": "BUY",
+      "size": 5.0,
+      "price": 169.0,
+      "trade_time": "2026-10-12T16:39:05Z"
+    },
+    {
+      "symbol": "MRNX",
+      "side": "BUY",
+      "size": 5.0,
+      "price": 177.0,
+      "trade_time": "2026-10-12T15:21:35Z"
+    },
+    {
+      "symbol": "LITE",
+      "side": "BUY",
+      "size": 0.1,
+      "price": 1026.6,
+      "trade_time": "2026-10-12T14:24:09Z"
+    },
     {
       "symbol": "MRNX",
       "side": "SELL",
@@ -6919,83 +6924,6 @@
       "size": 4.0,
       "price": 1731.88,
       "trade_time": "2026-07-14T05:34:42Z"
-    },
-    {
-      "symbol": "SNDK",
-      "side": "SELL",
-      "size": 2.0,
-      "price": 1700.0,
-      "trade_time": "2026-07-13T16:59:39Z"
-    },
-    {
-      "symbol": "MNST",
-      "side": "BUY",
-      "size": 5.0,
-      "price": 97.25,
-      "trade_time": "2026-07-13T16:42:18Z"
-    },
-    {
-      "symbol": "SNDK",
-      "side": "SELL",
-      "size": 2.0,
-      "price": 1672.35,
-      "trade_time": "2026-07-13T16:39:05Z"
-    },
-    {
-      "symbol": "KORU",
-      "side": "SELL",
-      "size": 0.5,
-      "price": 414.93,
-      "trade_time": "2026-07-13T16:37:01Z"
-    },
-    {
-      "symbol": "KORU",
-      "side": "SELL",
-      "size": 3.0,
-      "price": 414.93,
-      "trade_time": "2026-07-13T16:36:40Z"
-    },
-    {
-      "symbol": "NVDA",
-      "side": "BUY",
-      "size": 1.0,
-      "price": 205.0,
-      "trade_time": "2026-07-13T16:35:16Z"
-    },
-    {
-      "symbol": "KORU",
-      "side": "SELL",
-      "size": 0.5,
-      "price": 418.03,
-      "trade_time": "2026-07-13T16:31:55Z"
-    },
-    {
-      "symbol": "KORU",
-      "side": "SELL",
-      "size": 3.0,
-      "price": 417.89,
-      "trade_time": "2026-07-13T16:31:53Z"
-    },
-    {
-      "symbol": "INTC",
-      "side": "BUY",
-      "size": 2.0,
-      "price": 103.0,
-      "trade_time": "2026-07-13T16:25:18Z"
-    },
-    {
-      "symbol": "VSH",
-      "side": "SELL",
-      "size": 10.0,
-      "price": 42.031,
-      "trade_time": "2026-07-13T16:23:27Z"
-    },
-    {
-      "symbol": "TSM",
-      "side": "BUY",
-      "size": 0.5,
-      "price": 428.0,
-      "trade_time": "2026-07-13T16:18:28Z"
     }
   ]
 }
