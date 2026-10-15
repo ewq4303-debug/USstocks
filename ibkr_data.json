@@ -1,118 +1,328 @@
 {
-  "fetched_at": "2026-10-14 17:03 ET",
+  "fetched_at": "2026-10-15 17:03 ET",
   "summary": {
     "currency": "USD",
-    "net_liquidation": 39086.94,
-    "gross_position_value": 24934.04,
-    "total_cash_value": 14120.65,
-    "available_funds": 20036.3,
-    "buying_power": 80145.19,
+    "net_liquidation": 40060.9,
+    "gross_position_value": 45856.97,
+    "total_cash_value": -5828.32,
+    "available_funds": 11909.99,
+    "buying_power": 47639.96,
     "dividends": 0.0,
-    "leverage": "0.64"
+    "leverage": "1.14"
   },
   "positions": [
     {
-      "symbol": "MRNX",
-      "position": 50.0,
-      "average_price": 167.180002,
-      "market_price": 183.0,
-      "market_value": 9150.0,
-      "unrealized_pnl": 790.9999,
-      "daily_pnl": 628.9,
+      "symbol": "LITX",
+      "position": 450.0,
+      "average_price": 24.677781,
+      "market_price": 26.059999,
+      "market_value": 11726.999752,
+      "unrealized_pnl": 621.998353,
+      "daily_pnl": 621.998353,
+      "currency": "USD"
+    },
+    {
+      "symbol": "KORU",
+      "position": 900.0,
+      "average_price": 11.665208,
+      "market_price": 11.6131,
+      "market_value": 10451.790045,
+      "unrealized_pnl": -46.896755,
+      "daily_pnl": -46.896755,
       "currency": "USD"
     },
     {
       "symbol": "GLND",
-      "position": 2400.0,
-      "average_price": 4.038336,
-      "market_price": 3.7,
-      "market_value": 8880.00012,
-      "unrealized_pnl": -812.00713,
-      "daily_pnl": -812.00728,
+      "position": 2912.0,
+      "average_price": 3.880947,
+      "market_price": 3.35,
+      "market_value": 9755.199709,
+      "unrealized_pnl": -1546.119066,
+      "daily_pnl": -1214.111991,
       "currency": "USD"
     },
     {
-      "symbol": "PLTR",
-      "position": 10.0,
-      "average_price": 205.5,
-      "market_price": 200.0,
-      "market_value": 2000.0,
-      "unrealized_pnl": -55.0,
-      "daily_pnl": -86.7,
+      "symbol": "MRNX",
+      "position": 25.0,
+      "average_price": 167.180004,
+      "market_price": 201.0,
+      "market_value": 5025.0,
+      "unrealized_pnl": 845.499908,
+      "daily_pnl": 887.8951,
       "currency": "USD"
     },
     {
       "symbol": "LITE",
-      "position": 1.6,
-      "average_price": 1041.238,
-      "market_price": 894.0,
-      "market_value": 1430.4,
-      "unrealized_pnl": -235.5808,
-      "daily_pnl": -133.626,
+      "position": 3.0,
+      "average_price": 949.94028,
+      "market_price": 863.0,
+      "market_value": 2589.0,
+      "unrealized_pnl": -260.82084,
+      "daily_pnl": -28.96804,
+      "currency": "USD"
+    },
+    {
+      "symbol": "PLTR",
+      "position": 11.0,
+      "average_price": 205.0,
+      "market_price": 200.139999,
+      "market_value": 2201.539993,
+      "unrealized_pnl": -53.460007,
+      "daily_pnl": -8.160007,
+      "currency": "USD"
+    },
+    {
+      "symbol": "SPCX",
+      "position": 10.0,
+      "average_price": 164.252,
+      "market_price": 147.940002,
+      "market_value": 1479.400024,
+      "unrealized_pnl": -163.119976,
+      "daily_pnl": -25.739975,
       "currency": "USD"
     },
     {
       "symbol": "NET",
       "position": 4.0,
       "average_price": 329.931575,
-      "market_price": 324.540009,
-      "market_value": 1298.160034,
-      "unrealized_pnl": -21.566266,
-      "daily_pnl": -92.639966,
-      "currency": "USD"
-    },
-    {
-      "symbol": "SPCX",
-      "position": 7.0,
-      "average_price": 171.785714,
-      "market_price": 151.582596,
-      "market_value": 1061.078171,
-      "unrealized_pnl": -141.421829,
-      "daily_pnl": -34.701829,
+      "market_price": 317.299988,
+      "market_value": 1269.199951,
+      "unrealized_pnl": -50.526349,
+      "daily_pnl": -28.120049,
       "currency": "USD"
     },
     {
       "symbol": "CRWD",
       "position": 3.0,
       "average_price": 251.540333,
-      "market_price": 248.470001,
-      "market_value": 745.410004,
-      "unrealized_pnl": -9.210996,
-      "daily_pnl": -38.219996,
+      "market_price": 244.300003,
+      "market_value": 732.900009,
+      "unrealized_pnl": -21.720991,
+      "daily_pnl": -14.969991,
       "currency": "USD"
     },
     {
       "symbol": "ARKK",
       "position": 3.0,
       "average_price": 89.833333,
-      "market_price": 84.260002,
-      "market_value": 252.780006,
-      "unrealized_pnl": -16.719994,
-      "daily_pnl": -8.729994,
-      "currency": "USD"
-    },
-    {
-      "symbol": "EWZ",
-      "position": 0.0,
-      "average_price": 0.0,
-      "market_price": 42.599998,
-      "market_value": 0.0,
-      "unrealized_pnl": 4e-05,
-      "daily_pnl": -229.7611,
-      "currency": "USD"
-    },
-    {
-      "symbol": "KORU",
-      "position": 0.0,
-      "average_price": 0.0,
-      "market_price": 12.82,
-      "market_value": 0.0,
-      "unrealized_pnl": 0.0,
-      "daily_pnl": -387.1156,
+      "market_price": 85.980003,
+      "market_value": 257.94001,
+      "unrealized_pnl": -11.55999,
+      "daily_pnl": 4.50001,
       "currency": "USD"
     }
   ],
   "trades": [
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 11.55,
+      "trade_time": "2026-10-15T18:08:44Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 47.0,
+      "price": 11.6,
+      "trade_time": "2026-10-15T18:04:11Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 53.0,
+      "price": 11.6,
+      "trade_time": "2026-10-15T18:04:02Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 11.75,
+      "trade_time": "2026-10-15T17:49:24Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 11.8,
+      "trade_time": "2026-10-15T17:45:21Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 47.0,
+      "price": 11.84,
+      "trade_time": "2026-10-15T17:43:56Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 53.0,
+      "price": 11.8397,
+      "trade_time": "2026-10-15T17:43:56Z"
+    },
+    {
+      "symbol": "SPCX",
+      "side": "BUY",
+      "size": 3.0,
+      "price": 146.34,
+      "trade_time": "2026-10-15T17:41:01Z"
+    },
+    {
+      "symbol": "PLTR",
+      "side": "BUY",
+      "size": 1.0,
+      "price": 199.0,
+      "trade_time": "2026-10-15T17:27:19Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "BUY",
+      "size": 94.0,
+      "price": 24.6,
+      "trade_time": "2026-10-15T17:26:45Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "BUY",
+      "size": 50.0,
+      "price": 24.6,
+      "trade_time": "2026-10-15T17:26:45Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "BUY",
+      "size": 6.0,
+      "price": 24.6,
+      "trade_time": "2026-10-15T17:23:22Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 24.8,
+      "trade_time": "2026-10-15T17:18:10Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 40.0,
+      "price": 11.75,
+      "trade_time": "2026-10-15T17:16:52Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 20.0,
+      "price": 11.745,
+      "trade_time": "2026-10-15T17:16:52Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 40.0,
+      "price": 11.745,
+      "trade_time": "2026-10-15T17:16:52Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 24.7,
+      "trade_time": "2026-10-15T17:08:26Z"
+    },
+    {
+      "symbol": "GLND",
+      "side": "BUY",
+      "size": 87.0,
+      "price": 3.14,
+      "trade_time": "2026-10-15T17:03:33Z"
+    },
+    {
+      "symbol": "GLND",
+      "side": "BUY",
+      "size": 25.0,
+      "price": 3.14,
+      "trade_time": "2026-10-15T17:03:33Z"
+    },
+    {
+      "symbol": "GLND",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 3.138,
+      "trade_time": "2026-10-15T17:02:13Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 11.54,
+      "trade_time": "2026-10-15T17:00:43Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 11.57,
+      "trade_time": "2026-10-15T17:00:08Z"
+    },
+    {
+      "symbol": "LITX",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 24.6,
+      "trade_time": "2026-10-15T16:59:49Z"
+    },
+    {
+      "symbol": "GLND",
+      "side": "BUY",
+      "size": 50.0,
+      "price": 3.11,
+      "trade_time": "2026-10-15T16:58:20Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 11.5,
+      "trade_time": "2026-10-15T16:51:36Z"
+    },
+    {
+      "symbol": "GLND",
+      "side": "BUY",
+      "size": 150.0,
+      "price": 3.05,
+      "trade_time": "2026-10-15T16:46:09Z"
+    },
+    {
+      "symbol": "MRNX",
+      "side": "SELL",
+      "size": 25.0,
+      "price": 203.56,
+      "trade_time": "2026-10-15T16:44:15Z"
+    },
+    {
+      "symbol": "LITE",
+      "side": "BUY",
+      "size": 0.4,
+      "price": 844.6001,
+      "trade_time": "2026-10-15T16:44:05Z"
+    },
+    {
+      "symbol": "LITE",
+      "side": "BUY",
+      "size": 1.0,
+      "price": 845.0,
+      "trade_time": "2026-10-15T16:42:41Z"
+    },
+    {
+      "symbol": "GLND",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 3.2583,
+      "trade_time": "2026-10-15T13:42:07Z"
+    },
     {
       "symbol": "LITE",
       "side": "BUY",
@@ -228,20 +438,6 @@
     {
       "symbol": "GLND",
       "side": "BUY",
-      "size": 100.0,
-      "price": 3.91,
-      "trade_time": "2026-10-14T12:34:11Z"
-    },
-    {
-      "symbol": "GLND",
-      "side": "BUY",
-      "size": 71.0,
-      "price": 3.91,
-      "trade_time": "2026-10-14T12:34:11Z"
-    },
-    {
-      "symbol": "GLND",
-      "side": "BUY",
       "size": 53.0,
       "price": 3.91,
       "trade_time": "2026-10-14T12:34:11Z"
@@ -254,11 +450,18 @@
       "trade_time": "2026-10-14T12:34:11Z"
     },
     {
-      "symbol": "KORU",
-      "side": "SELL",
-      "size": 10.0,
-      "price": 13.8,
-      "trade_time": "2026-10-14T12:33:38Z"
+      "symbol": "GLND",
+      "side": "BUY",
+      "size": 100.0,
+      "price": 3.91,
+      "trade_time": "2026-10-14T12:34:11Z"
+    },
+    {
+      "symbol": "GLND",
+      "side": "BUY",
+      "size": 71.0,
+      "price": 3.91,
+      "trade_time": "2026-10-14T12:34:11Z"
     },
     {
       "symbol": "KORU",
@@ -270,21 +473,7 @@
     {
       "symbol": "KORU",
       "side": "SELL",
-      "size": 5.0,
-      "price": 13.8,
-      "trade_time": "2026-10-14T12:33:38Z"
-    },
-    {
-      "symbol": "KORU",
-      "side": "SELL",
       "size": 10.0,
-      "price": 13.8,
-      "trade_time": "2026-10-14T12:33:38Z"
-    },
-    {
-      "symbol": "KORU",
-      "side": "SELL",
-      "size": 1.0,
       "price": 13.8,
       "trade_time": "2026-10-14T12:33:38Z"
     },
@@ -305,6 +494,27 @@
     {
       "symbol": "KORU",
       "side": "SELL",
+      "size": 10.0,
+      "price": 13.8,
+      "trade_time": "2026-10-14T12:33:38Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "SELL",
+      "size": 5.0,
+      "price": 13.8,
+      "trade_time": "2026-10-14T12:33:38Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "SELL",
+      "size": 1.0,
+      "price": 13.8,
+      "trade_time": "2026-10-14T12:33:38Z"
+    },
+    {
+      "symbol": "KORU",
+      "side": "SELL",
       "size": 1.0,
       "price": 13.8,
       "trade_time": "2026-10-14T12:33:38Z"
@@ -312,14 +522,14 @@
     {
       "symbol": "KORU",
       "side": "BUY",
-      "size": 189.0,
+      "size": 11.0,
       "price": 14.8,
       "trade_time": "2026-10-14T00:14:26Z"
     },
     {
       "symbol": "KORU",
       "side": "BUY",
-      "size": 11.0,
+      "size": 189.0,
       "price": 14.8,
       "trade_time": "2026-10-14T00:14:26Z"
     },
@@ -424,6 +634,13 @@
     {
       "symbol": "MRNX",
       "side": "SELL",
+      "size": 31.0,
+      "price": 180.0,
+      "trade_time": "2026-10-09T17:56:32Z"
+    },
+    {
+      "symbol": "MRNX",
+      "side": "SELL",
       "size": 16.0,
       "price": 180.0,
       "trade_time": "2026-10-09T17:56:32Z"
@@ -432,13 +649,6 @@
       "symbol": "MRNX",
       "side": "SELL",
       "size": 3.0,
-      "price": 180.0,
-      "trade_time": "2026-10-09T17:56:32Z"
-    },
-    {
-      "symbol": "MRNX",
-      "side": "SELL",
-      "size": 31.0,
       "price": 180.0,
       "trade_time": "2026-10-09T17:56:32Z"
     },
@@ -662,15 +872,15 @@
     {
       "symbol": "MRNX",
       "side": "SELL",
-      "size": 42.0,
-      "price": 151.12,
+      "size": 8.0,
+      "price": 151.1204,
       "trade_time": "2026-10-09T13:47:14Z"
     },
     {
       "symbol": "MRNX",
       "side": "SELL",
-      "size": 8.0,
-      "price": 151.1204,
+      "size": 42.0,
+      "price": 151.12,
       "trade_time": "2026-10-09T13:47:14Z"
     },
     {
@@ -6846,174 +7056,6 @@
       "size": 100.0,
       "price": 59.44,
       "trade_time": "2026-07-17T13:35:24Z"
-    },
-    {
-      "symbol": "VSH",
-      "side": "SELL",
-      "size": 5.0,
-      "price": 35.67,
-      "trade_time": "2026-07-17T00:53:51Z"
-    },
-    {
-      "symbol": "ON",
-      "side": "SELL",
-      "size": 4.0,
-      "price": 87.26,
-      "trade_time": "2026-07-17T00:51:37Z"
-    },
-    {
-      "symbol": "SOXS",
-      "side": "BUY",
-      "size": 1.0,
-      "price": 54.5,
-      "trade_time": "2026-07-17T00:40:41Z"
-    },
-    {
-      "symbol": "SOXS",
-      "side": "BUY",
-      "size": 99.0,
-      "price": 54.5,
-      "trade_time": "2026-07-17T00:40:36Z"
-    },
-    {
-      "symbol": "SOXS",
-      "side": "BUY",
-      "size": 100.0,
-      "price": 53.69,
-      "trade_time": "2026-07-16T23:36:50Z"
-    },
-    {
-      "symbol": "META",
-      "side": "SELL",
-      "size": 4.0,
-      "price": 664.5,
-      "trade_time": "2026-07-16T23:34:21Z"
-    },
-    {
-      "symbol": "ONTO",
-      "side": "SELL",
-      "size": 6.0,
-      "price": 273.05,
-      "trade_time": "2026-07-16T23:33:32Z"
-    },
-    {
-      "symbol": "META",
-      "side": "SELL",
-      "size": 4.0,
-      "price": 664.5,
-      "trade_time": "2026-07-16T23:33:05Z"
-    },
-    {
-      "symbol": "SNDK",
-      "side": "SELL",
-      "size": 4.0,
-      "price": 1359.01,
-      "trade_time": "2026-07-16T23:32:44Z"
-    },
-    {
-      "symbol": "SOXS",
-      "side": "BUY",
-      "size": 50.0,
-      "price": 52.0,
-      "trade_time": "2026-07-16T16:27:12Z"
-    },
-    {
-      "symbol": "INTC",
-      "side": "SELL",
-      "size": 11.0,
-      "price": 97.635,
-      "trade_time": "2026-07-16T16:11:37Z"
-    },
-    {
-      "symbol": "SNDK",
-      "side": "SELL",
-      "size": 5.0,
-      "price": 1440.14,
-      "trade_time": "2026-07-16T16:10:38Z"
-    },
-    {
-      "symbol": "SNDK",
-      "side": "SELL",
-      "size": 1.0,
-      "price": 1440.14,
-      "trade_time": "2026-07-16T16:10:38Z"
-    },
-    {
-      "symbol": "SNDK",
-      "side": "SELL",
-      "size": 4.0,
-      "price": 1440.14,
-      "trade_time": "2026-07-16T16:10:38Z"
-    },
-    {
-      "symbol": "AMD",
-      "side": "SELL",
-      "size": 5.0,
-      "price": 503.4,
-      "trade_time": "2026-07-16T16:10:19Z"
-    },
-    {
-      "symbol": "AMD",
-      "side": "SELL",
-      "size": 5.0,
-      "price": 503.4,
-      "trade_time": "2026-07-16T16:10:19Z"
-    },
-    {
-      "symbol": "SSPC",
-      "side": "BUY",
-      "size": 100.0,
-      "price": 15.28,
-      "trade_time": "2026-07-16T14:24:33Z"
-    },
-    {
-      "symbol": "SOXX",
-      "side": "SELL",
-      "size": 9.0,
-      "price": 534.94,
-      "trade_time": "2026-07-16T13:50:33Z"
-    },
-    {
-      "symbol": "NVDA",
-      "side": "SELL",
-      "size": 26.0,
-      "price": 207.43,
-      "trade_time": "2026-07-16T13:50:15Z"
-    },
-    {
-      "symbol": "SSPC",
-      "side": "BUY",
-      "size": 100.0,
-      "price": 15.3,
-      "trade_time": "2026-07-16T13:41:27Z"
-    },
-    {
-      "symbol": "TSM",
-      "side": "SELL",
-      "size": 14.0,
-      "price": 405.5,
-      "trade_time": "2026-07-16T08:59:21Z"
-    },
-    {
-      "symbol": "KORU",
-      "side": "SELL",
-      "size": 740.0,
-      "price": 20.29,
-      "trade_time": "2026-07-16T08:58:45Z"
-    },
-    {
-      "symbol": "SOXX",
-      "side": "SELL",
-      "size": 1.0,
-      "price": 544.04,
-      "trade_time": "2026-07-16T08:58:12Z"
-    },
-    {
-      "symbol": "SKHY",
-      "side": "SELL",
-      "size": 220.0,
-      "price": 165.79,
-      "trade_time": "2026-07-16T08:57:42Z"
     }
   ]
 }
