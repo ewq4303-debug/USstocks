@@ -1,15 +1,15 @@
 {
   "steps": {
     "fetch_nav": {
-      "ok": false,
-      "message": "✓ SendRequest OK · ReferenceCode=4909434474 ✗ 網路錯誤: HTTPSConnectionPool(host='gdcdyn.interactivebrokers.com', port=443): Max retries exceeded with url: /AccountManagement/FlexWebService/GetStatement?t=877170495274429819133316&q=4909434474&v=3 (Caused by NameResolutionError(\"HTTPSConnection(host='gdcdyn.interactivebrokers.com', port=443): Failed to resolve 'gdcdyn.interactivebrokers.com' ([Errno -2] Name or service not known)\")) ",
-      "updated_at": "2026-10-20T07:14:31Z"
+      "ok": true,
+      "message": "IBKR Flex NAV updated",
+      "updated_at": "2026-10-20T13:04:10Z"
     },
     "compute_metrics": {
       "ok": true,
       "message": "portfolio metrics updated",
-      "updated_at": "2026-10-20T07:14:33Z"
+      "updated_at": "2026-10-20T13:04:12Z"
     }
   },
-  "updated_at": "2026-10-20T07:14:33Z"
+  "updated_at": "2026-10-20T13:04:12Z"
 }
