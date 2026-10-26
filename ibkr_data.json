@@ -1,104 +1,104 @@
 {
-  "fetched_at": "2026-10-23 17:05 ET",
+  "fetched_at": "2026-10-26 17:05 ET",
   "summary": {
     "currency": "USD",
-    "net_liquidation": 30127.14,
-    "gross_position_value": 44111.75,
-    "total_cash_value": -14083.92,
-    "available_funds": 2490.29,
-    "buying_power": 9961.16,
+    "net_liquidation": 33637.28,
+    "gross_position_value": 47623.93,
+    "total_cash_value": -14083.93,
+    "available_funds": 1787.9,
+    "buying_power": 7151.59,
     "dividends": 0.0,
-    "leverage": "1.46"
+    "leverage": "1.42"
   },
   "positions": [
     {
       "symbol": "LITX",
       "position": 900.0,
       "average_price": 24.840559,
-      "market_price": 19.33,
-      "market_value": 17396.99991,
-      "unrealized_pnl": -4959.50279,
-      "daily_pnl": 219.74981,
+      "market_price": 22.768999,
+      "market_value": 20492.09919,
+      "unrealized_pnl": -1864.40351,
+      "daily_pnl": 3212.09919,
       "currency": "USD"
     },
     {
       "symbol": "GLND",
       "position": 2500.0,
       "average_price": 3.862343,
-      "market_price": 2.9815,
-      "market_value": 7453.74975,
-      "unrealized_pnl": -2202.10775,
-      "daily_pnl": -171.25025,
+      "market_price": 3.13,
+      "market_value": 7825.00025,
+      "unrealized_pnl": -1830.85725,
+      "daily_pnl": 325.00025,
       "currency": "USD"
     },
     {
       "symbol": "KORU",
       "position": 700.0,
       "average_price": 11.699552,
-      "market_price": 10.62,
-      "market_value": 7433.99993,
-      "unrealized_pnl": -755.68627,
-      "daily_pnl": 300.99993,
+      "market_price": 11.0001,
+      "market_value": 7700.070105,
+      "unrealized_pnl": -489.616095,
+      "daily_pnl": 294.070105,
       "currency": "USD"
     },
     {
       "symbol": "MRNX",
       "position": 40.0,
       "average_price": 173.812502,
-      "market_price": 134.5,
-      "market_value": 5380.0,
-      "unrealized_pnl": -1572.5001,
-      "daily_pnl": -174.8,
+      "market_price": 129.507004,
+      "market_value": 5180.280152,
+      "unrealized_pnl": -1772.219948,
+      "daily_pnl": -164.119848,
       "currency": "USD"
     },
     {
       "symbol": "PLTR",
       "position": 11.0,
       "average_price": 205.0,
-      "market_price": 196.820007,
-      "market_value": 2165.02008,
-      "unrealized_pnl": -89.97992,
-      "daily_pnl": 6.93008,
+      "market_price": 198.690002,
+      "market_value": 2185.590027,
+      "unrealized_pnl": -69.409973,
+      "daily_pnl": 21.340027,
       "currency": "USD"
     },
     {
       "symbol": "SPCX",
       "position": 13.0,
       "average_price": 161.04,
-      "market_price": 147.839996,
-      "market_value": 1921.919953,
-      "unrealized_pnl": -171.600047,
-      "daily_pnl": 40.169953,
+      "market_price": 147.448502,
+      "market_value": 1916.830521,
+      "unrealized_pnl": -176.689479,
+      "daily_pnl": -0.539479,
       "currency": "USD"
     },
     {
       "symbol": "NET",
       "position": 4.0,
       "average_price": 329.931575,
-      "market_price": 328.0,
-      "market_value": 1312.0,
-      "unrealized_pnl": -7.7263,
-      "daily_pnl": 97.56,
+      "market_price": 331.790009,
+      "market_value": 1327.160034,
+      "unrealized_pnl": 7.433734,
+      "daily_pnl": 24.240034,
       "currency": "USD"
     },
     {
       "symbol": "CRWD",
       "position": 3.0,
       "average_price": 251.540333,
-      "market_price": 258.0,
-      "market_value": 774.0,
-      "unrealized_pnl": 19.379,
-      "daily_pnl": 60.18,
+      "market_price": 261.847504,
+      "market_value": 785.542511,
+      "unrealized_pnl": 30.921511,
+      "daily_pnl": 12.832511,
       "currency": "USD"
     },
     {
       "symbol": "ARKK",
       "position": 3.0,
       "average_price": 89.833333,
-      "market_price": 81.980003,
-      "market_value": 245.94001,
-      "unrealized_pnl": -23.55999,
-      "daily_pnl": 0.36001,
+      "market_price": 81.650002,
+      "market_value": 244.950005,
+      "unrealized_pnl": -24.549995,
+      "daily_pnl": -1.019995,
       "currency": "USD"
     }
   ],
@@ -191,14 +191,14 @@
       "symbol": "LITX",
       "side": "BUY",
       "size": 50.0,
-      "price": 25.66,
+      "price": 25.65,
       "trade_time": "2026-10-19T15:28:25Z"
     },
     {
       "symbol": "LITX",
       "side": "BUY",
       "size": 50.0,
-      "price": 25.65,
+      "price": 25.66,
       "trade_time": "2026-10-19T15:28:25Z"
     },
     {
@@ -6017,209 +6017,6 @@
       "size": 100.0,
       "price": 17.5,
       "trade_time": "2026-07-28T06:17:55Z"
-    },
-    {
-      "symbol": "UMC",
-      "side": "SELL",
-      "size": 100.0,
-      "price": 17.75,
-      "trade_time": "2026-07-28T02:18:37Z"
-    },
-    {
-      "symbol": "SKDD",
-      "side": "BUY",
-      "size": 180.0,
-      "price": 17.9,
-      "trade_time": "2026-07-28T00:29:27Z"
-    },
-    {
-      "symbol": "SSPC",
-      "side": "BUY",
-      "size": 20.0,
-      "price": 22.0,
-      "trade_time": "2026-07-27T15:20:43Z"
-    },
-    {
-      "symbol": "SSPC",
-      "side": "BUY",
-      "size": 20.0,
-      "price": 22.22,
-      "trade_time": "2026-07-27T14:59:09Z"
-    },
-    {
-      "symbol": "SKDD",
-      "side": "BUY",
-      "size": 100.0,
-      "price": 17.1,
-      "trade_time": "2026-07-27T14:47:03Z"
-    },
-    {
-      "symbol": "SOXS",
-      "side": "BUY",
-      "size": 20.0,
-      "price": 58.0,
-      "trade_time": "2026-07-27T14:46:27Z"
-    },
-    {
-      "symbol": "VRT",
-      "side": "SELL",
-      "size": 1.0,
-      "price": 273.22,
-      "trade_time": "2026-07-27T14:42:35Z"
-    },
-    {
-      "symbol": "VRT",
-      "side": "SELL",
-      "size": 1.0,
-      "price": 273.2204,
-      "trade_time": "2026-07-27T14:42:35Z"
-    },
-    {
-      "symbol": "CRWD",
-      "side": "SELL",
-      "size": 6.0,
-      "price": 183.85,
-      "trade_time": "2026-07-27T14:40:03Z"
-    },
-    {
-      "symbol": "NET",
-      "side": "SELL",
-      "size": 4.0,
-      "price": 261.0,
-      "trade_time": "2026-07-27T14:39:47Z"
-    },
-    {
-      "symbol": "LITE",
-      "side": "SELL",
-      "size": 0.1664,
-      "price": 714.18,
-      "trade_time": "2026-07-27T14:29:28Z"
-    },
-    {
-      "symbol": "AAOI",
-      "side": "SELL",
-      "size": 9.0,
-      "price": 94.24,
-      "trade_time": "2026-07-27T14:29:14Z"
-    },
-    {
-      "symbol": "MRVL",
-      "side": "SELL",
-      "size": 1.0,
-      "price": 186.18,
-      "trade_time": "2026-07-27T14:28:59Z"
-    },
-    {
-      "symbol": "MRVL",
-      "side": "SELL",
-      "size": 2.0,
-      "price": 186.18,
-      "trade_time": "2026-07-27T14:28:59Z"
-    },
-    {
-      "symbol": "LITE",
-      "side": "SELL",
-      "size": 1.0,
-      "price": 714.0,
-      "trade_time": "2026-07-27T14:28:41Z"
-    },
-    {
-      "symbol": "SSPC",
-      "side": "BUY",
-      "size": 150.0,
-      "price": 22.45,
-      "trade_time": "2026-07-27T14:28:41Z"
-    },
-    {
-      "symbol": "AMD",
-      "side": "SELL",
-      "size": 2.0,
-      "price": 487.35,
-      "trade_time": "2026-07-27T14:28:00Z"
-    },
-    {
-      "symbol": "SSPC",
-      "side": "BUY",
-      "size": 61.0,
-      "price": 22.5,
-      "trade_time": "2026-07-27T14:23:55Z"
-    },
-    {
-      "symbol": "SSPC",
-      "side": "BUY",
-      "size": 9.0,
-      "price": 22.5,
-      "trade_time": "2026-07-27T14:23:55Z"
-    },
-    {
-      "symbol": "SKDD",
-      "side": "BUY",
-      "size": 100.0,
-      "price": 16.6,
-      "trade_time": "2026-07-27T14:21:25Z"
-    },
-    {
-      "symbol": "SOXS",
-      "side": "BUY",
-      "size": 100.0,
-      "price": 53.1,
-      "trade_time": "2026-07-27T14:00:03Z"
-    },
-    {
-      "symbol": "MNST",
-      "side": "BUY",
-      "size": 20.0,
-      "price": 94.53,
-      "trade_time": "2026-07-27T13:52:10Z"
-    },
-    {
-      "symbol": "SOXS",
-      "side": "BUY",
-      "size": 100.0,
-      "price": 52.0,
-      "trade_time": "2026-07-27T13:45:16Z"
-    },
-    {
-      "symbol": "SKDD",
-      "side": "BUY",
-      "size": 100.0,
-      "price": 15.1,
-      "trade_time": "2026-07-27T13:43:22Z"
-    },
-    {
-      "symbol": "SSPC",
-      "side": "BUY",
-      "size": 50.0,
-      "price": 21.4,
-      "trade_time": "2026-07-27T13:07:08Z"
-    },
-    {
-      "symbol": "SOXS",
-      "side": "SELL",
-      "size": 12.0,
-      "price": 46.79,
-      "trade_time": "2026-07-27T09:59:14Z"
-    },
-    {
-      "symbol": "SOXS",
-      "side": "SELL",
-      "size": 30.0,
-      "price": 46.78,
-      "trade_time": "2026-07-27T09:59:14Z"
-    },
-    {
-      "symbol": "SOXS",
-      "side": "SELL",
-      "size": 18.0,
-      "price": 46.77,
-      "trade_time": "2026-07-27T09:59:14Z"
-    },
-    {
-      "symbol": "SKDD",
-      "side": "SELL",
-      "size": 80.0,
-      "price": 13.11,
-      "trade_time": "2026-07-27T09:58:50Z"
     }
   ]
 }
