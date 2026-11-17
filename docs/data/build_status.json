@@ -3,13 +3,13 @@
     "fetch_nav": {
       "ok": true,
       "message": "IBKR Flex NAV updated",
-      "updated_at": "2026-11-16T17:31:33Z"
+      "updated_at": "2026-11-17T00:23:30Z"
     },
     "compute_metrics": {
       "ok": true,
       "message": "portfolio metrics updated",
-      "updated_at": "2026-11-16T17:31:35Z"
+      "updated_at": "2026-11-17T00:23:37Z"
     }
   },
-  "updated_at": "2026-11-16T17:31:35Z"
+  "updated_at": "2026-11-17T00:23:37Z"
 }
