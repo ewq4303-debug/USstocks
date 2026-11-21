@@ -1,15 +1,15 @@
 {
   "steps": {
     "fetch_nav": {
-      "ok": true,
-      "message": "IBKR Flex NAV updated",
-      "updated_at": "2026-11-20T22:45:35Z"
+      "ok": false,
+      "message": "✗ Flex error 1003: Statement is not available. ",
+      "updated_at": "2026-11-21T07:14:30Z"
     },
     "compute_metrics": {
       "ok": true,
       "message": "portfolio metrics updated",
-      "updated_at": "2026-11-20T22:45:36Z"
+      "updated_at": "2026-11-21T07:14:32Z"
     }
   },
-  "updated_at": "2026-11-20T22:45:36Z"
+  "updated_at": "2026-11-21T07:14:32Z"
 }
